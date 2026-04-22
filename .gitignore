@@ -1,0 +1,13 @@
+# Python cache files
+__pycache__/
+*.pyc
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Output results (generated files)
+outputs/
+
+# Virtual environment (if later ساختی)
+venv/
+.env
