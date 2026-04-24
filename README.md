@@ -198,3 +198,5 @@ Below is a sample result showing the full processing pipeline (original image, g
 
 !\[Manual Result](image/Manual\_threshold\_180.png)
 
+!\[Test](https://raw.githubusercontent.com/Ashkan-Soori/roi-segmentation-project/main/image/Otsu\_threshold.png)
+
