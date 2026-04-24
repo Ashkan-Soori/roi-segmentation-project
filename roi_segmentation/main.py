@@ -4,6 +4,14 @@
 # In[ ]:
 
 
+"""
+Simple ROI segmentation tool based on thresholding.
+
+The goal of this script is to separate tissue from background
+in breast histology images (H&E and IHC). It uses basic thresholding
+followed by simple morphological cleaning to make the mask cleaner.
+"""
+
 import argparse
 import os
 import cv2
@@ -12,177 +20,153 @@ import matplotlib.pyplot as plt
 
 
 def load_image(path):
-    """
-    Load the image from disk.
-    We check first if the file exists to avoid unexpected crashes.
-    """
+    # We first check if the file exists to avoid silent crashes later
     if not os.path.exists(path):
-        raise FileNotFoundError(f"The image file was not found at: {path}")
+        raise FileNotFoundError(f"Image not found at: {path}")
 
     image = cv2.imread(path)
+
+    # If OpenCV cannot read it, it usually means the file is corrupted or unsupported
     if image is None:
-        raise ValueError("The image could not be opened. Please check the file.")
+        raise ValueError("Unable to read the image file.")
 
-    # Convert BGR (OpenCV default) to RGB for correct visualization
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    return image_rgb
+    return image
 
 
-def convert_to_grayscale(image_rgb):
-    """
-    Convert RGB image to grayscale.
-    Thresholding works on single-channel images.
-    """
-    gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-    return gray
+def convert_to_grayscale(image):
+    # Thresholding works on intensity values, so we convert to grayscale
+    # to simplify the segmentation process
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 
 def apply_otsu_threshold(gray_image):
-    """
-    Apply Otsu thresholding.
-    The threshold value is chosen automatically.
-    """
+    # Otsu automatically finds a threshold by analyzing the histogram.
+    # This is useful when lighting conditions vary between images.
     threshold_value, mask = cv2.threshold(
         gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
-    return threshold_value, mask
+    return mask, threshold_value
 
 
-def apply_manual_threshold(gray_image, threshold_value):
-    """
-    Apply manual thresholding using a user-defined value.
-    """
-    _, mask = cv2.threshold(
-        gray_image, threshold_value, 255, cv2.THRESH_BINARY
-    )
-    return mask
+def apply_manual_threshold(gray_image, threshold):
+    # In some cases we may want to control the threshold manually,
+    # especially if Otsu does not separate tissue well.
+    mask = gray_image > threshold
+    return (mask * 255).astype("uint8")
 
 
-def apply_morphology(binary_mask, kernel_size=3):
-    """
-    Clean the binary mask using morphological operations.
+def apply_morphology(mask, kernel_size=3):
+    # After thresholding, small noise and holes usually appear.
+    # Morphological operations help clean the segmentation result.
 
-    First we remove small noisy regions (opening),
-    then we fill small holes inside the ROI (closing).
-    """
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
-    opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
+    # Opening removes tiny isolated white pixels
+    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    # Closing fills small black gaps inside the segmented region
     cleaned = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
 
     return cleaned
 
 
-def display_and_save_results(original, gray, mask_raw, mask_cleaned,
-                             method_name):
-    """
-    Show original image, grayscale, raw mask and cleaned mask.
-    Also save the final cleaned result.
-    """
+def display_and_save_results(original, gray, raw_mask, cleaned_mask, image_path):
+    # Showing all steps together makes it easier to understand
+    # how each processing stage affects the image.
 
-    plt.figure(figsize=(16, 5))
+    plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 4, 1)
-    plt.imshow(original)
     plt.title("Original")
+    plt.imshow(cv2.cvtColor(original, cv2.COLOR_BGR2RGB))
     plt.axis("off")
 
     plt.subplot(1, 4, 2)
-    plt.imshow(gray, cmap="gray")
     plt.title("Grayscale")
+    plt.imshow(gray, cmap="gray")
     plt.axis("off")
 
     plt.subplot(1, 4, 3)
-    plt.imshow(mask_raw, cmap="gray")
-    plt.title(f"{method_name} (Raw)")
+    plt.title("Raw Mask")
+    plt.imshow(raw_mask, cmap="gray")
     plt.axis("off")
 
     plt.subplot(1, 4, 4)
-    plt.imshow(mask_cleaned, cmap="gray")
-    plt.title(f"{method_name} + Morphology")
+    plt.title("After Morphology")
+    plt.imshow(cleaned_mask, cmap="gray")
     plt.axis("off")
 
-    plt.tight_layout()
+    # The Outputs folder is created automatically
+    # so the user does not need to create it manually
+    output_dir = "Outputs"
+    os.makedirs(output_dir, exist_ok=True)
 
-    output_name = "roi_segmentation_result.png"
-    plt.savefig(output_name, dpi=300, bbox_inches="tight")
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    output_filename = f"{image_name}_segmentation_result.png"
+    output_path = os.path.join(output_dir, output_filename)
 
-    print("Result saved as:", output_name)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Result saved to: {output_path}")
 
     plt.show()
 
 
 def main():
-    """
-    Main pipeline:
-    1. Load image
-    2. Convert to grayscale
-    3. Apply thresholding (Otsu or manual)
-    4. Apply morphology
-    5. Display and save results
-    """
+    # Command line arguments allow the user to run the script
+    # without modifying the source code.
 
     parser = argparse.ArgumentParser(
-        description="ROI segmentation using thresholding and morphological cleaning."
+        description="ROI segmentation for H&E and IHC images"
     )
 
-    parser.add_argument(
-        "--image",
-        required=True,
-        help="Path to the input image."
-    )
+    parser.add_argument("--image", required=True, help="Path to input image")
 
     parser.add_argument(
         "--method",
-        choices=["otsu", "manual"],
         default="otsu",
-        help="Thresholding method (default: otsu)."
+        choices=["otsu", "manual"],
+        help="Thresholding method",
     )
 
     parser.add_argument(
         "--threshold",
         type=int,
-        default=230,
-        help="Manual threshold value (used only if method=manual)."
+        default=200,
+        help="Threshold value if manual method is used",
     )
 
     parser.add_argument(
         "--kernel",
         type=int,
         default=3,
-        help="Kernel size for morphological operations (default: 3)."
+        help="Kernel size for morphology",
     )
 
     args = parser.parse_args()
 
-    try:
-        print("Loading image...")
-        image = load_image(args.image)
+    print("Loading image...")
+    image = load_image(args.image)
 
-        print("Converting to grayscale...")
-        gray = convert_to_grayscale(image)
+    print("Converting to grayscale...")
+    gray = convert_to_grayscale(image)
 
-        if args.method == "otsu":
-            print("Applying Otsu threshold...")
-            _, mask_raw = apply_otsu_threshold(gray)
-            method_name = "Otsu"
-        else:
-            print("Applying manual threshold...")
-            mask_raw = apply_manual_threshold(gray, args.threshold)
-            method_name = "Manual"
+    print("Applying threshold...")
+    # We allow both automatic and manual thresholding
+    # to make the script more flexible.
+    if args.method == "otsu":
+        raw_mask, t_value = apply_otsu_threshold(gray)
+        print(f"Otsu selected threshold: {t_value}")
+    else:
+        raw_mask = apply_manual_threshold(gray, args.threshold)
+        print(f"Manual threshold used: {args.threshold}")
 
-        print("Cleaning mask using morphology...")
-        mask_cleaned = apply_morphology(mask_raw, args.kernel)
+    print("Cleaning mask...")
+    cleaned_mask = apply_morphology(raw_mask, args.kernel)
 
-        print("Displaying results...")
-        display_and_save_results(
-            image, gray, mask_raw, mask_cleaned, method_name
-        )
+    print("Displaying and saving results...")
+    display_and_save_results(image, gray, raw_mask, cleaned_mask, args.image)
 
-        print("Processing completed.")
-
-    except Exception as e:
-        print("An error occurred:", e)
+    print("Done.")
 
 
 if __name__ == "__main__":
