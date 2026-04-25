@@ -186,9 +186,13 @@ The goal is to provide a simple, clear, and reproducible example of classical im
 
 Below is a sample result showing the full processing pipeline (original image, grayscale, raw mask, and cleaned mask):
 
-<img src="./image/Otsu\_threshold.png" width="800"/>
+\### Otsu Method
+
+<img src="outputs/Otsu\_threshold.png" width="800"/>
 
 
 
-<img src="./image/Manual\_threshold\_180.png" width="800"/>
+\### Manual Threshold (180)
+
+<img src="outputs/Manual\_threshold\_180.png" width="800"/>
 
