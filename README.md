@@ -196,3 +196,8 @@ Below is a sample result showing the full processing pipeline (original image, g
 
 <img src="outputs/Manual\_threshold\_180.png" width="800"/>
 
+### Otsu Method
+![Otsu Result](outputs/Otsu_threshold.png)
+
+### Manual Threshold (180)
+![Manual Result](outputs/Manual_threshold_180.png)
