@@ -186,11 +186,13 @@ The goal is to provide a simple, clear, and reproducible example of classical im
 
 Below is a sample result showing the full processing pipeline (original image, grayscale, raw mask, and cleaned mask):
 
+\### Otsu Method
+
+<img src="image/Otsu\_threshold.png" width="700"/>
 
 
-!\[Otsu Result](https://raw.githubusercontent.com/Ashkan-Soori/roi-segmentation-project/main/image/Otsu\_threshold.png)
 
+\### Manual Threshold (180)
 
-
-!\[Manual Result](https://raw.githubusercontent.com/Ashkan-Soori/roi-segmentation-project/main/image/Manual\_threshold\_180.png)
+<img src="image/Manual\_threshold\_180.png" width="700"/>
 
