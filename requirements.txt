@@ -1,3 +1,8 @@
-opencv-python
-numpy
-matplotlib
+## Requirements
+
+- Python 3.10+
+- OpenCV
+- NumPy
+- Matplotlib
+- Pytest
+- Coverage

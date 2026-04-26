@@ -5,33 +5,29 @@
 
 
 import numpy as np
-from roi_segmentation.main import apply_manual_threshold
+from roi_segmentation.main import apply_manual_threshold, apply_otsu_threshold
 
 
-def test_manual_threshold_output_values():
-    """
-    This test checks that the manual threshold function
-    produces a binary mask containing only 0 and 255.
-    """
+def test_manual_threshold_binary_output():
+    gray = np.array([[10, 200], [250, 100]], dtype=np.uint8)
 
-    image = np.array([[10, 200], [250, 100]], dtype=np.uint8)
+    mask = apply_manual_threshold(gray, 150)
 
-    mask = apply_manual_threshold(image, 150)
-
-    unique_values = np.unique(mask)
-
-    assert set(unique_values).issubset({0, 255})
+    unique_vals = np.unique(mask)
+    assert set(unique_vals).issubset({0, 255})
 
 
 def test_manual_threshold_shape():
-    """
-    This test ensures that the output mask
-    has the same shape as the input image.
-    """
+    gray = np.zeros((5, 5), dtype=np.uint8)
+    mask = apply_manual_threshold(gray, 100)
 
-    image = np.zeros((5, 5), dtype=np.uint8)
+    assert mask.shape == gray.shape
 
-    mask = apply_manual_threshold(image, 100)
 
-    assert mask.shape == image.shape
+def test_otsu_threshold_returns_mask_and_value():
+    gray = np.zeros((10, 10), dtype=np.uint8)
+    mask, t_value = apply_otsu_threshold(gray)
+
+    assert mask.shape == gray.shape
+    assert isinstance(t_value, (int, float))
 
