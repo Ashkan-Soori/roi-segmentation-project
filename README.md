@@ -50,6 +50,98 @@ Then run:
 git clone https://github.com/Ashkan-Soori/roi-segmentation-project.git
 
 ```
+Move into the project folder:
+```bash
+
+cd roi-segmentation-project
+
+```
+---
+
+2. Create a Virtual Environment
+
+Although not mandatory, it is strongly recommended to create a virtual environment to keep dependencies isolated from your system Python installation.
+
+On macOS / Linux:
+
+```bash
+
+python3 -m venv roi_env
+source roi_env/bin/activate
+
+```
+
+On Windows:
+
+```bash
+
+python -m venv roi_env
+roi_env\Scripts\activate
+
+```
+
+After activation, your terminal should show:
+
+(roi_env)
+This indicates that the virtual environment is active
+
+
+3. Install Required Dependencies
+
+```bash
+
+pip install -r requirements.txt
+
+```
+This will install all necessary libraries including:
+
+numpy
+opencv-python
+matplotlib
+pytest
+coverage
+
+4. Verify Installation
+
+```bash
+
+pytest
+
+```
+
+5. Run Tests with Coverage 
+
+```bash
+
+python -m coverage run --source=roi_segmentation -m pytest
+python -m coverage report
+
+```
+6. Run the Application
+
+Default mode (Otsu thresholding):
+
+```bash
+
+python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg
+
+```
+Manual thresholding example:
+
+```bash
+
+python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg --method manual --threshold 180
+
+```
+
+
+
+
+To generate a coverage report:
+
+
+Run the test suite to confirm everything is working:
+
 
 **How to Run**
 
