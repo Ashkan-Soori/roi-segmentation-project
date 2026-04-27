@@ -1,66 +1,55 @@
-ROI Segmentation Project
+##ROI Segmentation Project
+
+This project presents a classical image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
+
+The main objective is to automatically extract tissue regions by applying grayscale thresholding and basic morphological operations. Instead of relying on deep learning models, the approach focuses on simplicity, interpretability, and reproducibility.
+
+Because the segmentation is based on image intensity rather than color-specific features, the method works consistently for both H&E and IHC stained images.
+
+The purpose of this project is not to achieve state-of-the-art performance, but to demonstrate how fundamental image processing techniques can effectively solve a basic medical image segmentation task in a clear and structured way.
+
+This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
+
+- - -
 
 
 
-This project implements a simple Region of Interest (ROI) segmentation pipeline using classical image processing techniques.
+## What the Project Does
 
+The segmentation pipeline follows a clear and structured sequence of steps:
 
+- Loading the input image  
+- Converting it to grayscale  
+- Applying thresholding (either Otsu or manual)  
+- Cleaning the mask using morphological operations  
+- Displaying the intermediate and final results  
+- Automatically saving the output image  
 
-The main goal is to extract the tissue region from histopathology images by applying thresholding and basic morphological operations.
+The overall idea behind this project is to show how classical image processing techniques can effectively solve a basic segmentation task without relying on deep learning models.
 
-It works for both H\&E and IHC images since the segmentation is based on image intensity rather than color-specific processing.
+---
 
+##Installation & Setup
 
+This project has been tested with Python 3.9–3.11 on Windows, macOS, and Linux.
+Before starting, make sure Python and Git are installed on your system.
 
-This repository was developed for the final examination of the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
+You can check your Python installation by running:
+python --version
+python3 --version
+git --version
+If Python is not installed, download it from:
+https://www.python.org/downloads/
+1. Clone the Repository
 
+Open your terminal and navigate to the directory where you want to download the project.
 
+Then run:
+```bash
 
-**What the project does**
+git clone https://github.com/Ashkan-Soori/roi-segmentation-project.git
 
-
-
-The segmentation process includes:
-
-
-
-Loading the input image
-
-Converting it to grayscale
-
-Applying thresholding (either Otsu or manual)
-
-Cleaning the mask using morphological operations
-
-Displaying the intermediate and final results
-
-Automatically saving the output image
-
-
-
-The idea behind this project is to demonstrate how classical image processing methods can be used to solve a basic segmentation task without relying on deep learning.
-
-
-
-**Installation**
-
-
-
-Make sure Python (3.9 or newer) is installed.
-
-
-
-Install the required libraries using:
-
-
-
-pip install -r requirements.txt
-
-
-
-All required packages are listed inside the requirements.txt file.
-
-
+```
 
 **How to Run**
 
