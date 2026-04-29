@@ -264,6 +264,21 @@ For full licensing details and usage terms, please refer to the official Kaggle 
 
 - - -
 
+##Example Output
+
+Below is an example of the full segmentation pipeline applied to a sample HER2 histopathology image.
+
+The figure displays all main processing stages side by side:
+
+The original RGB image
+The grayscale conversion
+The raw binary mask obtained after thresholding
+The cleaned mask after morphological operations
+
+These outputs allow the user to visually compare the effect of thresholding and morphology on the final ROI segmentation result.
+
+The examples below show results using both the default Otsu method and manual thresholding.
+
 
 ### Otsu Method
 
@@ -273,7 +288,10 @@ For full licensing details and usage terms, please refer to the official Kaggle 
 
 <img src="outputs/Manual_threshold_180.png" width="800"/>
 
+- - -
 
+##Licese
+This project is licensed under the MIT License.
 
 
 
