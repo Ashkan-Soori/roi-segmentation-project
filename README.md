@@ -27,7 +27,7 @@ The segmentation pipeline follows a clear and structured sequence of steps:
 
 The overall idea behind this project is to show how classical image processing techniques can effectively solve a basic segmentation task without relying on deep learning models.
 
----
+- - -
 
 ##Installation & Setup
 
@@ -134,225 +134,149 @@ python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg --method manual --
 
 ```
 
+##Running the Tests
+Before running the tests, make sure:
 
+You are inside the root directory of the project
+All dependencies are installed (see Installation section)
 
+To execute the full test suite, run the following command in your terminal:
 
-To generate a coverage report:
+```bash
 
+pytest tests/
 
-Run the test suite to confirm everything is working:
+```
 
+This will automatically discover and execute all test files inside the tests/ directory.
 
-**How to Run**
+If everything is working correctly, you should see an output similar to:
+```bash
 
+9 passed in 0.xx seconds
 
+```
+This confirms that all components of the segmentation pipeline are functioning as expected
 
-Open a terminal (CMD on Windows) and make sure you are inside the root folder of the project.
 
+If everything is correctly installed, you should see all tests passing successfully.
 
+---
 
-Default method (Otsu thresholding)
+Running Tests with Coverage
 
+To evaluate how much of the source code is covered by the tests, run:
 
+```bash
 
-**On Windows**:
+python -m coverage run --source=roi_segmentation -m pytest
+python -m coverage report
 
+```
+This will display a coverage summary in the terminal, including:
 
+Total number of statements
+Number of missed lines
+Overall coverage percentage
 
-python -m roi\_segmentation.main --image data\\0\_1009\_0\_0\_0.jpg
+For a detailed HTML report, run:
 
+```bash
 
+python -m coverage html
 
-On macOS/Linux:
+```
 
+```bash
 
+htmlcov/index.html
 
-python3 -m roi\_segmentation.main --image data/0\_1009\_0\_0\_0.jpg
+```
+in your browser to inspect line-by-line coverage details.
 
+Coverage Status
 
+The test suite currently achieves 96% code coverage for the roi_segmentation module.
 
-**Manual thresholding**
+All core segmentation logic (image loading, thresholding, morphology, and main execution flow) is covered by tests.
+The small percentage of uncovered lines corresponds to minor branches or visualization-related code.
 
+- - -
 
 
-On Windows:
 
+##Limitations and Notes
 
+ please consider the following limitations:
 
-python -m roi\_segmentation.main --image data\\0\_1009\_0\_0\_0.jpg --method manual --threshold 180
+1. Supported Image Formats
 
+Only common image formats such as .jpg, .jpeg, and .png are supported.
 
+Other formats may require manual conversion before processing.
 
-On macOS/Linux:
+All output masks are saved in .png format.
 
+2. Intensity-Based Segmentation
 
+The segmentation pipeline relies purely on grayscale intensity thresholding.
 
-python3 -m roi\_segmentation.main --image data/0\_1009\_0\_0\_0.jpg --method manual --threshold 180
+It does not use color-aware processing or machine learning models.
 
+Performance may vary depending on image contrast, lighting conditions, or staining variability.
 
+3. No Learning or Model Adaptation
 
-**Available Arguments**
+This project does not include training, fine-tuning, or adaptive mechanisms.
 
+It is a fully classical image processing implementation intended for educational purposes.
 
+4. Binary Segmentation Only
 
-\--image : path to the input image (required)
+The pipeline produces a binary mask distinguishing tissue from background.
 
-\--method : choose between "otsu" (default) or "manual"
+Multi-class segmentation is not supported.
 
-\--threshold : threshold value used only in manual mode
+5. Command-Line Interface (CLI) Only
 
-\--kernel : kernel size used for morphological operations
+The application is designed to run from the command line.
 
+No graphical user interface (GUI) is currently provided.
 
+6. Sensitivity to Manual Threshold Selection
 
-**Output**
+When using manual thresholding, the segmentation quality depends heavily on the selected threshold value.
 
+An inappropriate threshold may lead to over-segmentation or under-segmentation.
 
+- - -
 
-When the script runs, it shows four images:
+##Image Attribution
 
+The sample images used in this project were obtained from the publicly available IHC4BC – Compressed Dataset (HER2 subset) on Kaggle:
 
+https://www.kaggle.com/datasets/akbarnejad1991/ihc4bc-compressed
 
-Original image
+The dataset is publicly accessible and is used in this project strictly for academic and educational purposes.
 
-Grayscale version
+All rights and credits belong to the original dataset contributors.
+For full licensing details and usage terms, please refer to the official Kaggle dataset page.
 
-Raw threshold mask
+- - -
 
-Cleaned mask after morphology
-
-
-
-The final result is automatically saved inside the Outputs/ folder.
-
-If the folder does not exist, it will be created automatically.
-
-
-
-All output images are saved in PNG format.
-
-
-
-**Project Structure**
-
-
-
-roi-segmentation-project/
-
-* &#x20;data/ # Input images
-* &#x20;roi\_segmentation/ # Main segmentation code
-* &#x20;tests/ # Basic unit tests
-* &#x20;Outputs/ # Saved results
-* &#x20;requirements.txt
-* &#x20;README.md/
-* 
-
-**Notes**
-
-
-
-ROI Segmentation Project
-
-This project implements a simple Region of Interest (ROI) segmentation pipeline using classical image processing techniques.
-
-The main goal is to extract tissue regions from histopathology images by applying thresholding and basic morphological operations. The method is fully intensity-based, which means it works for both H&E and IHC images without relying on color-specific assumptions or deep learning models.
-
-This repository was developed for the final examination of the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
-
-Project Idea
-
-Instead of using deep learning, this project demonstrates how far we can go using classical image processing.
-
-The pipeline is intentionally simple and transparent. Every step is visible and understandable:
-
-Load the input image
-Convert it to grayscale
-Apply thresholding (Otsu or manual)
-Clean the mask using morphology
-Display intermediate results
-Save the final segmentation automatically
-
-The focus is clarity, reproducibility, and structured code organization.
-
-Installation
-
-Make sure Python 3.9 or newer is installed.
-
-All required libraries are listed in requirements.txt.
-
-From the root directory of the project, run:
-
-pip install -r requirements.txt
-Project Structure
-roi-segmentation-project/
-│
-├── data/                  # Input images
-├── roi_segmentation/      # Main segmentation module
-├── tests/                 # Unit tests
-├── Outputs/               # Saved segmentation results
-├── requirements.txt
-└── README.md
-How to Run the Project
-
-Open a terminal (CMD on Windows) and make sure you are inside the root folder of the project.
-
-Default Mode (Otsu Thresholding)
-On Windows
-python -m roi_segmentation.main --image data\0_1009_0_0_0.jpg
-On macOS/Linux
-python3 -m roi_segmentation.main --image data/0_1009_0_0_0.jpg
-
-Otsu thresholding automatically determines the best threshold value based on the image histogram.
-
-Manual Thresholding
-
-If you want to manually control the threshold:
-
-On Windows
-python -m roi_segmentation.main --image data\0_1009_0_0_0.jpg --method manual --threshold 180
-On macOS/Linux
-python3 -m roi_segmentation.main --image data/0_1009_0_0_0.jpg --method manual --threshold 180
-
-Manual mode allows experimenting with different threshold values depending on image contrast.
-
-Available Arguments
-Argument	Description
---image	Path to the input image (required)
---method	"otsu" (default) or "manual"
---threshold	Threshold value (used only in manual mode)
---kernel	Kernel size for morphological operations
-Output
-
-When the script runs, it displays four images:
-
-Original image
-Grayscale image
-Raw threshold mask
-Cleaned mask after morphology
-
-The final result is automatically saved inside the Outputs/ folder.
-If the folder does not exist, it will be created automatically.
-
-All output files are saved in PNG format.
-
-**Example Output**
-
-
-
-Below is a sample result showing the full processing pipeline (original image, grayscale, raw mask, and cleaned mask):
-
-\### Otsu Method
-
-<img src="outputs/Otsu\_threshold.png" width="800"/>
-
-
-
-\### Manual Threshold (180)
-
-<img src="outputs/Manual\_threshold\_180.png" width="800"/>
 
 ### Otsu Method
-![Otsu Result](outputs/Otsu_threshold.png)
+
+<img src="outputs/Otsu_threshold.png" width="800"/>
 
 ### Manual Threshold (180)
-![Manual Result](outputs/Manual_threshold_180.png)
+
+<img src="outputs/Manual_threshold_180.png" width="800"/>
+
+
+
+
+
+
+
+
