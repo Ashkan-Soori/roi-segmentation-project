@@ -290,9 +290,9 @@ The examples below show results using both the default Otsu method and manual th
 
 - - -
 
-##Licese
-This project is licensed under the MIT License.
+## License
 
+This project is licensed under the [MIT License](LICENSE).
 
 
 
