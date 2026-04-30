@@ -1,8 +1,5 @@
-## Requirements
-
-- Python 3.10+
-- OpenCV
-- NumPy
-- Matplotlib
-- Pytest
-- Coverage
+numpy
+opencv-python
+matplotlib
+pytest
+coverage
