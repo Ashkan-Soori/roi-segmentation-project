@@ -159,7 +159,7 @@ python -m pytest -v
 This will automatically discover and execute all test files inside the tests/ directory.
 
 If everything is working correctly, you should see an output similar to:
-```bash
+```Markdown
 
 9 passed in 0.xx seconds
 
@@ -169,7 +169,6 @@ This confirms that all components of the segmentation pipeline are functioning a
 
 If everything is correctly installed, you should see all tests passing successfully.
 
----
 
 1. Running Tests with Coverage
 
