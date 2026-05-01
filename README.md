@@ -1,4 +1,4 @@
-##ROI Segmentation Project
+## ROI Segmentation Project
 
 This project presents a classical image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
 
@@ -11,8 +11,6 @@ The purpose of this project is not to achieve state-of-the-art performance, but 
 This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
 
 - - -
-
-
 
 ## What the Project Does
 
@@ -29,9 +27,9 @@ The overall idea behind this project is to show how classical image processing t
 
 - - -
 
-##Installation & Setup
+## Installation & Setup
 
-This project has been tested with Python 3.9–3.11 on Windows, macOS, and Linux.
+This project has been tested with Python 3.10.11 on Windows, macOS, and Linux.
 Before starting, make sure Python and Git are installed on your system.
 
 You can check your Python installation by running:
@@ -40,6 +38,9 @@ python3 --version
 git --version
 If Python is not installed, download it from:
 https://www.python.org/downloads/
+
+- - -
+
 1. Clone the Repository
 
 Open your terminal and navigate to the directory where you want to download the project.
@@ -56,7 +57,7 @@ Move into the project folder:
 cd roi-segmentation-project
 
 ```
----
+
 
 2. Create a Virtual Environment
 
@@ -95,17 +96,24 @@ pip install -r requirements.txt
 ```
 This will install all necessary libraries including:
 
+
 numpy
 opencv-python
 matplotlib
 pytest
 coverage
 
+```Markdown
+
+The `requirements.txt` file contains all installable dependencies required to run the application, execute tests, and generate coverage reports.
+
+```
+
 4. Verify Installation
 
 ```bash
 
-pytest
+python -m pytest -v
 
 ```
 
@@ -134,7 +142,7 @@ python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg --method manual --
 
 ```
 
-##Running the Tests
+## Running the Tests
 Before running the tests, make sure:
 
 You are inside the root directory of the project
@@ -144,7 +152,7 @@ To execute the full test suite, run the following command in your terminal:
 
 ```bash
 
-pytest tests/
+python -m pytest -v
 
 ```
 
@@ -163,7 +171,7 @@ If everything is correctly installed, you should see all tests passing successfu
 
 ---
 
-Running Tests with Coverage
+1. Running Tests with Coverage
 
 To evaluate how much of the source code is covered by the tests, run:
 
@@ -189,9 +197,25 @@ python -m coverage html
 
 ```bash
 
-htmlcov/index.html
+start htmlcov/index.html
 
 ```
+On Windows, use start htmlcov/index.html to open the report in your browser.
+
+```Markdown
+
+On Windows:
+    start htmlcov/index.html
+
+On macOS:
+    open htmlcov/index.html
+
+On Linux:
+    xdg-open htmlcov/index.html
+
+```
+
+
 in your browser to inspect line-by-line coverage details.
 
 Coverage Status
@@ -203,9 +227,19 @@ The small percentage of uncovered lines corresponds to minor branches or visuali
 
 - - -
 
+ Test Environment
 
+```Markdown
 
-##Limitations and Notes
+This project was tested on:
+
+- Python 3.10.11
+- Windows 10
+- macOS
+
+```
+
+## Limitations and Notes
 
  please consider the following limitations:
 
@@ -251,7 +285,7 @@ An inappropriate threshold may lead to over-segmentation or under-segmentation.
 
 - - -
 
-##Image Attribution
+## Image Attribution
 
 The sample images used in this project were obtained from the publicly available IHC4BC – Compressed Dataset (HER2 subset) on Kaggle:
 
@@ -264,7 +298,7 @@ For full licensing details and usage terms, please refer to the official Kaggle 
 
 - - -
 
-##Example Output
+## Example Output
 
 Below is an example of the full segmentation pipeline applied to a sample HER2 histopathology image.
 
