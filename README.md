@@ -27,6 +27,43 @@ The overall idea behind this project is to show how classical image processing t
 
 - - -
 
+## Project Structure
+
+```Markdown
+
+ 
+
+The repository is organized in a modular and test-driven manner:
+
+roi-segmentation-project/
+│
+├── roi_segmentation/              # Core implementation package
+│   ├── __init__.py
+│   └── main.py                    # Segmentation pipeline (loading, thresholding, morphology, display)
+│
+├── tests/                         # Automated unit tests (pytest)
+│   ├── test_load_image.py
+│   ├── test_threshold.py
+│   ├── test_morphology.py
+│   ├── test_main_flow.py
+│   ├── test_main_manual_flow.py
+│   └── test_display_function.py
+│
+├── data/                          # Sample input images
+│
+├── outputs/                       # Example output results
+│   ├── Manual_threshold_180.png
+│   └── Otsu_threshold.png
+│
+├── README.md                      # Project documentation
+├── requirements.txt               # Python dependencies
+├── .gitignore
+├── LICENSE
+└── .coverage                      # Coverage results (generated)
+
+```
+- - -
+
 ## Installation & Setup
 
 This project has been tested with Python 3.10.11 on Windows, macOS, and Linux.
