@@ -17,16 +17,11 @@ This repository was developed as part of the final examination for the Software 
 
 ## What the Project Does
 
-The segmentation pipeline follows a clear and structured sequence of steps:
+The segmentation pipeline follows a clear and structured sequence of steps. It starts by loading the input image and converting it to grayscale, since thresholding methods typically work better on single-channel data. A threshold is then applied (either using Otsu’s method or a manual value) to separate the foreground from the background.
 
-- Loading the input image  
-- Converting it to grayscale  
-- Applying thresholding (either Otsu or manual)  
-- Cleaning the mask using morphological operations  
-- Displaying the intermediate and final results  
-- Automatically saving the output image  
+The resulting mask is usually noisy, so it is refined using basic morphological operations to improve its quality. The intermediate results, along with the final segmentation, can be displayed to better understand how each step affects the outcome. At the same time, the final mask is automatically saved for further use.
 
-The overall idea behind this project is to show how classical image processing techniques can effectively solve a basic segmentation task without relying on deep learning models.
+Overall, the idea behind this project is to show how relatively simple and well-understood image processing techniques can be combined into a complete workflow to solve a basic segmentation problem, without relying on more complex deep learning approaches.
 
 - - -
 
