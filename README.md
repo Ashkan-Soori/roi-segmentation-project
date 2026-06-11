@@ -1,15 +1,18 @@
 ## ROI Segmentation Project
 
-This project presents a classical image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
+This project implements a classical image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
 
-The main objective is to automatically extract tissue regions by applying grayscale thresholding and basic morphological operations. Instead of relying on deep learning models, the approach focuses on simplicity, interpretability, and reproducibility.
+The goal is to extract the main tissue region using a simple but structured approach based on grayscale analysis and thresholding. Instead of relying only on built-in functions, a custom implementation of Otsu thresholding is included to better understand how the threshold is selected from the image histogram.
 
-Because the segmentation is based on image intensity rather than color-specific features, the method works consistently for both H&E and IHC stained images.
+After thresholding, the resulting mask is refined using basic morphological operations (opening and closing) to reduce noise and improve the segmentation quality. The final ROI is then obtained by selecting the largest connected component, assuming it corresponds to the main tissue region.
 
-The purpose of this project is not to achieve state-of-the-art performance, but to demonstrate how fundamental image processing techniques can effectively solve a basic medical image segmentation task in a clear and structured way.
+The method is intentionally simple and does not depend on color-specific features, making it applicable to both H&E and IHC stained images.
+
+This project focuses on clarity, reproducibility, and understanding of the segmentation pipeline rather than achieving state-of-the-art performance. The aim is to show how fundamental image processing techniques can be combined into a complete and usable workflow.
+
+A command-line interface (CLI) is provided to allow easy execution of the pipeline on different images.
 
 This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
-
 - - -
 
 ## What the Project Does
