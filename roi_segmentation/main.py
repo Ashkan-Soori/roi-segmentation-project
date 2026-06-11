@@ -171,7 +171,7 @@ def main():
     This is the main pipeline of the program.
 
     The idea is simple:
-    1. Load the image
+    1. Load the public image
     2. Convert it to grayscale
     3. Apply thresholding (custom Otsu)
     4. Clean the mask
