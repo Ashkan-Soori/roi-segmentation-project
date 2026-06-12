@@ -7,13 +7,14 @@
 """
 ROI Segmentation Pipeline
 
-The segmentation is designed as a controlled and interpretable process.
+In this script, I tried to approach the segmentation problem step by step,
+instead of relying on a single built-in function.
 
-Instead of assuming a fixed foreground/background relationship,
-both possibilities are evaluated and the most consistent result is selected.
+The idea is to understand what is happening at each stage:
+how the threshold is chosen, how pixels are classified,
+and how the final region is selected.
 
-This ensures that the pipeline adapts to different image conditions
-rather than relying on hard-coded assumptions.
+The goal is not just to get a result, but to make the whole process clear and controllable.
 """
 
 import os
@@ -27,28 +28,48 @@ import matplotlib.pyplot as plt
 # Load image
 # -----------------------------
 def load_image(path):
+    """
+    I start by checking if the file actually exists.
+
+    It avoids confusing errors later and makes debugging easier.
+    """
+
     if not os.path.exists(path):
         raise FileNotFoundError(f"Image not found: {path}")
 
     img = cv2.imread(path)
 
     if img is None:
-        raise ValueError("Unable to load image")
+        raise ValueError("Unable to read the image")
 
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
 # -----------------------------
-# Grayscale
+# Convert to grayscale
 # -----------------------------
 def to_gray(img):
+    """
+    The segmentation is based on intensity values,
+    so I convert the image to grayscale.
+
+    This removes color complexity and keeps the focus on structure.
+    """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
 # -----------------------------
-# Custom Otsu
+# Compute threshold (manual Otsu)
 # -----------------------------
 def compute_threshold(gray):
+    """
+    Instead of using a built-in function,
+    I compute the threshold manually using Otsu's method.
+
+    This helps me understand how the separation between foreground
+    and background is actually decided.
+    """
+
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
 
     total = gray.size
@@ -75,103 +96,141 @@ def compute_threshold(gray):
         mean_bg = bg_sum / bg_weight
         mean_fg = (total_sum - bg_sum) / fg_weight
 
-        var = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
+        variance = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
 
-        if var > max_var:
-            max_var = var
+        if variance > max_var:
+            max_var = variance
             best_t = t
 
     return int(best_t)
 
 
 # -----------------------------
-# Adaptive thresholding (FIXED)
+# Apply threshold (adaptive)
 # -----------------------------
 def apply_threshold(gray, t):
     """
-    Instead of assuming which side represents the tissue,
-    both interpretations are evaluated.
+    I don't assume beforehand which side of the threshold is the tissue.
 
-    The version that produces a more consistent region
-    (larger connected structure) is selected.
+    So I create two possible interpretations and evaluate them
+    based on how structured they are.
+
+    Also, I define the final mask so that:
+    - tissue is black (0)
+    - background is white (255)
     """
 
-    mask_dark = np.zeros_like(gray, dtype=np.uint8)
-    mask_dark[gray < t] = 255
+    mask_dark = np.full_like(gray, 255, dtype=np.uint8)
+    mask_dark[gray < t] = 0
 
-    mask_bright = np.zeros_like(gray, dtype=np.uint8)
-    mask_bright[gray > t] = 255
+    mask_bright = np.full_like(gray, 255, dtype=np.uint8)
+    mask_bright[gray > t] = 0
 
-    # choose the mask with more meaningful structure
-    if np.sum(mask_dark) > np.sum(mask_bright):
+    def largest_component(mask):
+        binary = (mask == 0).astype(np.uint8)
+
+        num, _, stats, _ = cv2.connectedComponentsWithStats(binary)
+
+        if num <= 1:
+            return 0
+
+        return max(stats[1:, cv2.CC_STAT_AREA])
+
+    area_dark = largest_component(mask_dark)
+    area_bright = largest_component(mask_bright)
+
+    if area_dark > area_bright:
         return mask_dark
     else:
         return mask_bright
 
 
 # -----------------------------
-# Refinement (LESS aggressive)
+# Refinement
 # -----------------------------
 def refine_segmentation(mask):
     """
-    The refinement step is intentionally moderate.
+    After thresholding, there are usually small gaps and noise.
 
-    Excessive filtering can remove valid structures,
-    so the kernel size is kept small.
+    I apply a light refinement to make the region more continuous,
+    without removing important details.
     """
 
-    kernel = np.ones((3, 3), np.uint8)
+    binary = (mask == 0).astype(np.uint8) * 255
 
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    kernel = np.ones((2, 2), np.uint8)
 
-    return mask
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+    clean = np.full_like(mask, 255)
+    clean[binary == 255] = 0
+
+    return clean
 
 
 # -----------------------------
-# Region selection (FIXED)
+# Select main region
 # -----------------------------
 def select_main_region(mask):
     """
-    Instead of applying a strict threshold on region size,
-    the dominant region is selected directly.
+    At this point, there might still be multiple regions.
 
-    This avoids discarding valid tissue in cases
-    where the segmented region is relatively small.
+    Instead of just picking the largest one,
+    I also consider where the region is located.
+
+    Regions that are both large and closer to the center
+    are more likely to represent the actual tissue.
     """
 
-    num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    binary = (mask == 0).astype(np.uint8)
 
-    largest = 1
-    max_area = 0
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
+
+    h, w = mask.shape
+
+    best_label = 1
+    best_score = 0
 
     for i in range(1, num):
         area = stats[i, cv2.CC_STAT_AREA]
 
-        if area > max_area:
-            max_area = area
-            largest = i
+        x = stats[i, cv2.CC_STAT_LEFT]
+        y = stats[i, cv2.CC_STAT_TOP]
+        width = stats[i, cv2.CC_STAT_WIDTH]
+        height = stats[i, cv2.CC_STAT_HEIGHT]
 
-    final = np.zeros_like(mask)
-    final[labels == largest] = 255
+        cx = x + width // 2
+        cy = y + height // 2
 
-    return final, max_area
+        dist = np.sqrt((cx - w/2)**2 + (cy - h/2)**2)
+
+        score = area - 0.5 * dist
+
+        if score > best_score:
+            best_score = score
+            best_label = i
+
+    final = np.full_like(mask, 255)
+    final[labels == best_label] = 0
+
+    return final, best_score
 
 
 # -----------------------------
-# Visualization helpers
+# Overlay edges
 # -----------------------------
-def invert_mask(mask):
-    return cv2.bitwise_not(mask)
-
-
 def overlay_edges(img, mask):
     """
-    Boundaries are highlighted instead of full regions,
-    preserving the original visual context.
+    Instead of coloring the whole region,
+    I highlight only the boundaries.
+
+    This keeps the original image visible
+    while still showing the segmentation clearly.
     """
 
-    edges = cv2.Canny(mask, 100, 200)
+    binary = (mask == 0).astype(np.uint8) * 255
+
+    edges = cv2.Canny(binary, 100, 200)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
 
     overlay = img.copy()
@@ -184,8 +243,15 @@ def overlay_edges(img, mask):
 # Analysis
 # -----------------------------
 def analyze(mask):
+    """
+    I compute a simple ratio to understand how much
+    of the image is considered tissue.
+
+    This helps interpret whether the segmentation looks reasonable.
+    """
+
     total = mask.size
-    roi = np.sum(mask == 255)
+    roi = np.sum(mask == 0)
 
     ratio = roi / total
 
@@ -200,7 +266,7 @@ def analyze(mask):
 
 
 # -----------------------------
-# Show
+# Visualization
 # -----------------------------
 def show(img, gray, raw, clean, final, overlay,
          t, area, ratio, quality):
@@ -213,22 +279,27 @@ def show(img, gray, raw, clean, final, overlay,
     images = [img, gray, raw, clean, final, overlay]
 
     for i in range(6):
-        plt.subplot(1, 6, i + 1)
+        ax = plt.subplot(1, 6, i + 1)
 
         if i in [0, 5]:
-            plt.imshow(images[i])
+            ax.imshow(images[i])
         else:
-            plt.imshow(images[i], cmap="gray")
+            ax.imshow(images[i], cmap="gray")
 
-        plt.title(titles[i])
-        plt.axis("off")
+        ax.set_title(titles[i])
+        ax.axis("off")
 
-    plt.subplot(1, 6, 5)
-    plt.text(
-        10, 30,
-        f"T: {t}\nArea: {area}\nRatio: {ratio:.2f}\nQuality: {quality}",
+    # ✅ متن تحلیل بالا سمت چپ بدون تداخل
+    ax = plt.subplot(1, 6, 5)
+
+    ax.text(
+        0.02, 0.95,
+        f"T: {t}\nArea: {int(area)}\nRatio: {ratio:.2f}\nQuality: {quality}",
         color="red",
-        bbox=dict(facecolor="white", alpha=0.8)
+        fontsize=10,
+        verticalalignment='top',
+        transform=ax.transAxes,
+        bbox=dict(facecolor="white", alpha=0.85)
     )
 
     plt.tight_layout()
@@ -255,16 +326,12 @@ def main():
 
     final, area = select_main_region(clean)
 
-    clean_display = invert_mask(clean)
-    final_display = invert_mask(final)
-
     ratio, quality = analyze(final)
     overlay = overlay_edges(img, final)
 
     if args.show:
-        show(img, gray, raw, clean_display,
-             final_display, overlay,
-             t, area, ratio, quality)
+        show(img, gray, raw, clean, final,
+             overlay, t, area, ratio, quality)
 
 
 if __name__ == "__main__":
