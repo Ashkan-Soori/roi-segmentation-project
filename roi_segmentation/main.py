@@ -5,28 +5,35 @@
 
 
 """
-ROI Segmentation Pipeline (Manual Implementation)
+ROI Segmentation Pipeline (Fully Manual + Display Fix)
 
-In this implementation, I avoided relying on OpenCV and instead tried to
-reconstruct the main steps of a segmentation pipeline using basic tools.
+This implementation avoids OpenCV entirely and builds the segmentation
+pipeline step by step using NumPy.
 
-The goal here is not to optimize performance, but to understand how each
-step works internally.
+Additionally, since the code is executed in a Windows CMD environment,
+a matplotlib backend (TkAgg) is explicitly set to ensure that images
+are displayed correctly.
 
-Each part of the pipeline is written explicitly:
+Each stage is written explicitly to make the logic transparent:
 - image loading
 - grayscale conversion
 - threshold computation
 - segmentation
 - refinement
-- region selection
-- simple analysis
+- region extraction
+- analysis
+- visualization (with overlay)
 
-This makes the behavior of the system transparent and easier to reason about.
+The focus here is not only on results, but on understanding how each
+step contributes to the final output.
 """
+
+import matplotlib
+matplotlib.use('TkAgg')   # 🔥 ensures display works in CMD
 
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 # -----------------------------
@@ -34,10 +41,10 @@ from PIL import Image
 # -----------------------------
 def load_image(path):
     """
-    Instead of using OpenCV, I use PIL to load the image.
+    Load the image using PIL instead of OpenCV.
 
-    The image is converted to RGB format and then to a NumPy array
-    so that it can be processed numerically.
+    The image is converted into RGB format and then into a NumPy array
+    so that we can process it numerically.
     """
 
     img = Image.open(path).convert("RGB")
@@ -49,10 +56,10 @@ def load_image(path):
 # -----------------------------
 def to_gray(img):
     """
-    Color information is not necessary for segmentation in this case.
+    Convert RGB image to grayscale manually.
 
-    I convert the image to grayscale manually using a weighted sum
-    of the RGB channels. These weights reflect human perception.
+    The weights (0.299, 0.587, 0.114) reflect how humans perceive brightness.
+    This step simplifies the image by removing color information.
     """
 
     r = img[:, :, 0]
@@ -60,21 +67,18 @@ def to_gray(img):
     b = img[:, :, 2]
 
     gray = 0.299 * r + 0.587 * g + 0.114 * b
-
     return gray.astype(np.uint8)
 
 
 # -----------------------------
-# Compute threshold (Otsu-style)
+# Compute threshold
 # -----------------------------
 def compute_threshold(gray):
     """
-    The threshold is computed by analyzing the distribution of pixel intensities.
+    Compute threshold using Otsu-style logic.
 
-    The idea is to find a value that best separates the image into two groups:
-    background and foreground.
-
-    This is done by maximizing the variance between the two groups.
+    The idea is to separate foreground and background by maximizing
+    the variance between the two groups.
     """
 
     hist, _ = np.histogram(gray, bins=256, range=(0, 256))
@@ -117,28 +121,23 @@ def compute_threshold(gray):
 # -----------------------------
 def apply_threshold(gray, t):
     """
-    Once the threshold is known, each pixel is classified.
+    Create binary mask.
 
-    Pixels below the threshold are treated as foreground (0),
-    while the rest are background (255).
-
-    This creates a binary segmentation mask.
+    Pixels below threshold → foreground (0)
+    Pixels above threshold → background (255)
     """
 
-    mask = np.where(gray < t, 0, 255)
-
-    return mask.astype(np.uint8)
+    return np.where(gray < t, 0, 255).astype(np.uint8)
 
 
 # -----------------------------
-# Dilation (manual)
+# Dilation
 # -----------------------------
 def dilation(mask):
     """
-    Dilation expands the foreground region.
+    Expand foreground region.
 
-    A pixel becomes foreground if at least one of its neighbors
-    is already part of the foreground.
+    If any neighbor is foreground, the pixel becomes foreground.
     """
 
     h, w = mask.shape
@@ -146,10 +145,7 @@ def dilation(mask):
 
     for i in range(1, h - 1):
         for j in range(1, w - 1):
-
-            neighborhood = mask[i-1:i+2, j-1:j+2]
-
-            if np.any(neighborhood == 0):
+            if np.any(mask[i-1:i+2, j-1:j+2] == 0):
                 output[i, j] = 0
             else:
                 output[i, j] = 255
@@ -158,14 +154,13 @@ def dilation(mask):
 
 
 # -----------------------------
-# Erosion (manual)
+# Erosion
 # -----------------------------
 def erosion(mask):
     """
-    Erosion shrinks the foreground region.
+    Shrink foreground region.
 
-    A pixel remains foreground only if all of its neighbors
-    are also foreground.
+    A pixel remains foreground only if all neighbors are foreground.
     """
 
     h, w = mask.shape
@@ -173,10 +168,7 @@ def erosion(mask):
 
     for i in range(1, h - 1):
         for j in range(1, w - 1):
-
-            neighborhood = mask[i-1:i+2, j-1:j+2]
-
-            if np.all(neighborhood == 0):
+            if np.all(mask[i-1:i+2, j-1:j+2] == 0):
                 output[i, j] = 0
             else:
                 output[i, j] = 255
@@ -185,32 +177,26 @@ def erosion(mask):
 
 
 # -----------------------------
-# Refinement (closing)
+# Refinement
 # -----------------------------
 def refine_segmentation(mask):
     """
-    This step improves the segmentation result.
+    Improve segmentation quality.
 
-    I use a combination of dilation and erosion (closing)
-    to fill small gaps and smooth the region boundaries.
-
-    The goal is not to drastically change the shape,
-    but to make the region more coherent.
+    Closing (dilation + erosion) helps fill gaps and smooth boundaries.
     """
 
     return erosion(dilation(mask))
 
 
 # -----------------------------
-# Connected Components (manual)
+# Select main region
 # -----------------------------
 def select_main_region(mask):
     """
-    The segmentation may contain multiple regions.
+    Detect connected regions and select the largest one.
 
-    Here, I identify connected components manually
-    and select the largest one, assuming it represents
-    the main region of interest.
+    This assumes the main object is the largest connected component.
     """
 
     h, w = mask.shape
@@ -244,12 +230,10 @@ def select_main_region(mask):
         for j in range(w):
             if not visited[i, j] and mask[i, j] == 0:
                 region = dfs(i, j)
-
                 if len(region) > len(best_region):
                     best_region = region
 
     output = np.full_like(mask, 255)
-
     for i, j in best_region:
         output[i, j] = 0
 
@@ -257,20 +241,14 @@ def select_main_region(mask):
 
 
 # -----------------------------
-# Analysis
+# Analyze
 # -----------------------------
 def analyze(mask):
     """
-    This step provides a simple interpretation of the result.
-
-    I compute how much of the image is classified as foreground.
-    Based on that, I assign a rough quality label.
+    Compute ratio of foreground and assign a simple quality label.
     """
 
-    total = mask.size
-    roi = np.sum(mask == 0)
-
-    ratio = roi / total
+    ratio = np.sum(mask == 0) / mask.size
 
     if ratio > 0.7:
         quality = "High"
@@ -280,4 +258,97 @@ def analyze(mask):
         quality = "Low"
 
     return ratio, quality
+
+
+# -----------------------------
+# Overlay
+# -----------------------------
+def create_overlay(img, mask):
+    """
+    Highlight boundaries manually (no edge detector).
+
+    A pixel is marked if it belongs to foreground but has
+    background neighbors.
+    """
+
+    overlay = img.copy()
+    h, w = mask.shape
+
+    for i in range(1, h - 1):
+        for j in range(1, w - 1):
+            if mask[i, j] == 0:
+                if np.any(mask[i-1:i+2, j-1:j+2] == 255):
+                    overlay[i, j] = [255, 0, 0]
+
+    return overlay
+
+
+# -----------------------------
+# Visualization
+# -----------------------------
+def show_results(img, gray, mask, refined, final, t, ratio, quality):
+    """
+    Display all pipeline stages and overlay results.
+
+    This makes it easy to visually inspect how segmentation evolves.
+    """
+
+    overlay = create_overlay(img, final)
+
+    plt.figure(figsize=(18, 5))
+
+    titles = ["Original", "Gray", "Mask", "Refined", "Final ROI", "Overlay"]
+    images = [img, gray, mask, refined, final, overlay]
+
+    for i in range(6):
+        ax = plt.subplot(1, 6, i + 1)
+
+        if i in [0, 5]:
+            ax.imshow(images[i])
+        else:
+            ax.imshow(images[i], cmap="gray")
+
+        ax.set_title(titles[i])
+        ax.axis("off")
+
+    # Display metrics on Final ROI
+    ax = plt.subplot(1, 6, 5)
+    ax.text(
+        0.02, 0.95,
+        f"T: {t}\nRatio: {ratio:.2f}\nQuality: {quality}",
+        color="red",
+        fontsize=10,
+        verticalalignment='top',
+        transform=ax.transAxes,
+        bbox=dict(facecolor="white", alpha=0.85)
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+
+# -----------------------------
+# Main
+# -----------------------------
+if __name__ == "__main__":
+    import sys
+
+    image_path = sys.argv[1]
+
+    img = load_image(image_path)
+    gray = to_gray(img)
+
+    t = compute_threshold(gray)
+
+    mask = apply_threshold(gray, t)
+    refined = refine_segmentation(mask)
+    final = select_main_region(refined)
+
+    ratio, quality = analyze(final)
+
+    print(f"Threshold: {t}")
+    print(f"Ratio: {ratio:.2f}")
+    print(f"Quality: {quality}")
+
+    show_results(img, gray, mask, refined, final, t, ratio, quality)
 
