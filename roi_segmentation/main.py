@@ -7,13 +7,16 @@
 """
 ROI Segmentation Pipeline
 
-In this implementation, OpenCV is used as a supporting tool for image operations.
+In this project I used OpenCV as a tool, not as a solution.
 
-However, the core logic of the pipeline — including threshold selection,
-region filtering, and result analysis — is implemented and controlled manually.
+OpenCV gives me basic operations like filtering, thresholding and morphology,
+but it does not understand what the image contains.
 
-The objective is to avoid treating image processing as a black-box workflow,
-and instead provide a transparent, structured, and interpretable approach.
+All decisions in this pipeline — like choosing the threshold,
+removing noise, or deciding which region matters — are made manually.
+
+The idea was to build something that I can understand step by step,
+not just run a function and trust the result.
 """
 
 import os
@@ -23,24 +26,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# -----------------------------
-# Logging
-# -----------------------------
 def log(msg):
     print(f"[INFO] {msg}")
 
 
-# -----------------------------
-# Load image
-# -----------------------------
 def load_image(path):
     """
-    The pipeline starts here.
+    First thing I do is check if the image actually exists.
 
-    Before doing anything fancy, I make sure the image actually exists.
-    This avoids those frustrating silent errors later.
+    This might sound obvious, but skipping this check usually leads
+    to confusing errors later.
 
-    Then I load it and convert it to RGB, because OpenCV uses BGR by default.
+    I prefer to fail early and clearly.
     """
 
     if not os.path.exists(path):
@@ -49,34 +46,32 @@ def load_image(path):
     img = cv2.imread(path)
 
     if img is None:
-        raise ValueError("Failed to load image")
+        raise ValueError("Something went wrong while loading the image")
 
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-# -----------------------------
-# Grayscale
-# -----------------------------
 def to_gray(img):
     """
-    Instead of working with 3 channels,
-    I reduce the problem to a single intensity channel.
+    I convert the image to grayscale because I don’t really need color here.
 
-    This makes thresholding much more stable and interpretable.
+    The segmentation is based on intensity differences,
+    not color patterns.
+
+    This also makes the problem simpler.
     """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
-# -----------------------------
-# Custom Otsu
-# -----------------------------
 def custom_otsu(gray):
     """
-    Rather than relying on OpenCV’s built-in Otsu,
-    I explicitly compute the threshold.
+    Instead of directly calling OpenCV’s Otsu,
+    I tried to implement it myself.
 
-    This gives full control over the decision process
-    and avoids treating thresholding as a black box.
+    Not because OpenCV can't do it,
+    but because I wanted to understand how the threshold is chosen.
+
+    So here I explicitly compute it from the histogram.
     """
 
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
@@ -116,40 +111,20 @@ def custom_otsu(gray):
     return best_t, mask
 
 
-# -----------------------------
-# Adaptive method
-# -----------------------------
-def choose_method(gray):
+def clean_mask(mask):
     """
-    I avoid applying a fixed method blindly.
+    The raw mask is usually messy.
 
-    Instead, I look at the image statistics (standard deviation)
-    and decide if Otsu is reliable.
+    There are small dots, holes, and broken regions.
 
-    This introduces a small but meaningful layer of reasoning.
-    """
+    So I clean it in two steps:
+    - remove tiny noise
+    - make regions more continuous
 
-    if np.std(gray) < 25:
-        log("Low contrast → manual threshold")
-        return "manual"
-    else:
-        log("Using Otsu")
-        return "otsu"
-
-
-# -----------------------------
-# Morphology
-# -----------------------------
-def clean_mask(mask, k=3):
-    """
-    Raw segmentation is rarely clean.
-
-    So I refine it:
-    - Opening removes isolated noise
-    - Closing improves structure continuity
+    This part is mostly trial-and-error until it looks reasonable.
     """
 
-    kernel = np.ones((k, k), np.uint8)
+    kernel = np.ones((5, 5), np.uint8)
 
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -157,35 +132,14 @@ def clean_mask(mask, k=3):
     return mask
 
 
-# -----------------------------
-# Remove noise regions
-# -----------------------------
-def remove_small_objects(mask, min_size=1000):
-    """
-    Not every detected region is meaningful.
-
-    Here I filter out small components
-    that are unlikely to be part of the main tissue.
-    """
-
-    num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
-
-    cleaned = np.zeros_like(mask)
-
-    for i in range(1, num):
-        if stats[i, cv2.CC_STAT_AREA] > min_size:
-            cleaned[labels == i] = 255
-
-    return cleaned
-
-
-# -----------------------------
-# Largest ROI
-# -----------------------------
 def extract_largest(mask):
     """
-    Among all regions, I assume the main tissue
-    corresponds to the largest connected component.
+    After cleaning, there might still be multiple regions.
+
+    I assume that the main tissue is the largest one.
+
+    So instead of keeping everything,
+    I keep only the biggest connected component.
     """
 
     num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
@@ -195,6 +149,7 @@ def extract_largest(mask):
 
     for i in range(1, num):
         area = stats[i, cv2.CC_STAT_AREA]
+
         if area > max_area:
             max_area = area
             largest = i
@@ -205,59 +160,41 @@ def extract_largest(mask):
     return final, max_area
 
 
-# -----------------------------
-# Region count
-# -----------------------------
-def count_regions(mask):
+def invert_mask(mask):
     """
-    Counting regions helps understand segmentation complexity.
+    Just for visualization.
+
+    White background + black tissue is easier to read
+    than the opposite.
     """
-    num, _, _, _ = cv2.connectedComponentsWithStats(mask)
-    return num - 1
+    return cv2.bitwise_not(mask)
 
 
-# -----------------------------
-# Quality score
-# -----------------------------
-def quality_score(ratio):
+def overlay_edges(img, mask):
     """
-    A simple qualitative interpretation of ROI size.
+    At first I was coloring the whole region,
+    but that hides too much detail.
+
+    So instead I only draw the edges.
+
+    This way I can still see the tissue
+    and also understand where the boundary is.
     """
 
-    if ratio > 0.7:
-        return "High"
-    elif ratio > 0.3:
-        return "Medium"
-    else:
-        return "Low"
-
-
-# -----------------------------
-# Overlay mask
-# -----------------------------
-def overlay_mask(img, mask):
-    """
-    Instead of just showing the mask,
-    I overlay it on the original image.
-
-    This makes it much easier to visually verify
-    if the segmentation aligns with the tissue.
-    """
+    edges = cv2.Canny(mask, 100, 200)
 
     overlay = img.copy()
-    overlay[mask == 255] = [255, 0, 0]  # red highlight
+    overlay[edges > 0] = [255, 0, 0]
 
     return overlay
 
 
-# -----------------------------
-# Bounding box
-# -----------------------------
 def draw_bbox(img, mask):
     """
-    Draw a bounding box around the detected ROI.
+    This is just a quick way to show where the ROI is.
 
-    This gives a spatial summary of the segmentation.
+    It doesn’t add new information,
+    but it makes the result easier to understand visually.
     """
 
     coords = np.column_stack(np.where(mask > 0))
@@ -266,21 +203,21 @@ def draw_bbox(img, mask):
     y_max, x_max = coords.max(axis=0)
 
     img_copy = img.copy()
-
-    cv2.rectangle(img_copy, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+    cv2.rectangle(img_copy, (x_min, y_min),
+                  (x_max, y_max), (0, 255, 0), 2)
 
     return img_copy
 
 
-# -----------------------------
-# Analysis
-# -----------------------------
-def analyze_mask(mask):
+def analyze(mask):
     """
-    I don't want the pipeline to just produce an output.
+    I didn’t want the code to just output an image.
 
-    This step interprets the result by computing
-    how much of the image is considered ROI.
+    So I added a simple metric:
+    how much of the image is considered tissue.
+
+    It’s not perfect, but it gives a quick idea
+    if the segmentation makes sense.
     """
 
     total = mask.size
@@ -288,32 +225,38 @@ def analyze_mask(mask):
 
     ratio = roi / total
 
-    log(f"ROI ratio: {ratio:.2f}")
+    if ratio > 0.7:
+        quality = "High"
+    elif ratio > 0.3:
+        quality = "Medium"
+    else:
+        quality = "Low"
 
-    return ratio
+    return ratio, quality
 
 
-# -----------------------------
-# Visualization
-# -----------------------------
-def show_results(img, gray, raw, clean, final, overlay, boxed,
-                 t, area, ratio, regions, quality):
+def show(img, gray, raw, clean, final,
+         overlay, bbox, t, area, ratio, quality):
     """
-    This is not just visualization.
+    I try to show everything in the order it happens.
 
-    It is a diagnostic view of the entire pipeline,
-    showing both transformations and interpretation.
+    So anyone looking at it can follow the process
+    from the original image to the final result.
+
+    No overlapping text, no confusion.
     """
 
     plt.figure(figsize=(18, 5))
 
-    titles = ["Original", "Overlay", "Raw", "Clean", "Final ROI", "BBox"]
-    images = [img, overlay, raw, clean, final, boxed]
+    titles = ["Original", "Gray", "Raw",
+              "Clean", "Final ROI", "Overlay", "BBox"]
 
-    for i in range(6):
-        plt.subplot(1, 6, i + 1)
+    images = [img, gray, raw, clean, final, overlay, bbox]
 
-        if i in [0, 1, 5]:
+    for i in range(7):
+        plt.subplot(1, 7, i + 1)
+
+        if i in [0, 5, 6]:
             plt.imshow(images[i])
         else:
             plt.imshow(images[i], cmap="gray")
@@ -321,30 +264,19 @@ def show_results(img, gray, raw, clean, final, overlay, boxed,
         plt.title(titles[i])
         plt.axis("off")
 
-    # overlay text
-    plt.subplot(1, 6, 5)
-
-    text = (
-        f"T: {t}\n"
-        f"Area: {area}\n"
-        f"Ratio: {ratio:.2f}\n"
-        f"Regions: {regions}\n"
-        f"Quality: {quality}"
+    plt.text(
+        10, 30,
+        f"T: {t}\nArea: {area}\nRatio: {ratio:.2f}\nQuality: {quality}",
+        color="red",
+        bbox=dict(facecolor="white", alpha=0.8)
     )
-
-    plt.text(5, 20, text, color="red",
-             bbox=dict(facecolor="white", alpha=0.7))
 
     plt.tight_layout()
     plt.show()
 
 
-# -----------------------------
-# Main
-# -----------------------------
 def main():
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--image", required=True)
     parser.add_argument("--show", action="store_true")
 
@@ -353,30 +285,26 @@ def main():
     img = load_image(args.image)
     gray = to_gray(img)
 
-    method = choose_method(gray)
-
-    if method == "otsu":
-        t, raw = custom_otsu(gray)
-    else:
-        t = 180
-        _, raw = cv2.threshold(gray, t, 255, cv2.THRESH_BINARY)
+    t, raw = custom_otsu(gray)
 
     clean = clean_mask(raw)
-    clean = remove_small_objects(clean)
+
+    # important step: remove remaining noise
+    clean, _ = extract_largest(clean)
 
     final, area = extract_largest(clean)
 
-    ratio = analyze_mask(final)
-    regions = count_regions(clean)
-    quality = quality_score(ratio)
+    clean = invert_mask(clean)
+    final = invert_mask(final)
 
-    overlay = overlay_mask(img, final)
-    boxed = draw_bbox(img, final)
+    ratio, quality = analyze(final)
+
+    overlay = overlay_edges(img, final)
+    bbox = draw_bbox(img, final)
 
     if args.show:
-        show_results(img, gray, raw, clean, final,
-                     overlay, boxed,
-                     t, area, ratio, regions, quality)
+        show(img, gray, raw, clean, final,
+             overlay, bbox, t, area, ratio, quality)
 
 
 if __name__ == "__main__":
