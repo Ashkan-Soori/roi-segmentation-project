@@ -33,9 +33,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# -----------------------------
-# Load image
-# -----------------------------
+
+# this part related to Load image 
+
 def load_image(path):
     """
     I first check if the image exists to avoid unexpected failures later.
@@ -52,9 +52,9 @@ def load_image(path):
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-# -----------------------------
+
 # Convert to grayscale
-# -----------------------------
+
 def to_gray(img):
     """
     The segmentation is based on intensity values,
@@ -63,9 +63,9 @@ def to_gray(img):
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
-# -----------------------------
+
 # Compute threshold (manual Otsu)
-# -----------------------------
+
 def compute_threshold(gray):
     """
     The threshold is computed manually instead of calling a built-in function.
@@ -108,17 +108,19 @@ def compute_threshold(gray):
     return int(best_t)
 
 
-# -----------------------------
+
 # Apply threshold (adaptive)
-# -----------------------------
+
 def apply_threshold(gray, t):
     """
-    I generate two possible interpretations of the segmentation:
+    Instead of fixing the foreground definition in advance,
+I evaluate two possible thresholding outcomes:
 
-    - darker pixels as foreground
-    - brighter pixels as foreground
+- one where pixels below the threshold are treated as foreground
+- one where pixels above the threshold are treated as foreground
 
-    Then I select the one that forms a more coherent structure.
+I then compare these candidates based on the size of their connected regions,
+and select the one that forms a more coherent and meaningful structure.
     """
 
     mask_dark = np.full_like(gray, 255, dtype=np.uint8)
@@ -142,9 +144,9 @@ def apply_threshold(gray, t):
         return mask_bright
 
 
-# -----------------------------
+
 # Refinement
-# -----------------------------
+
 def refine_segmentation(mask):
     """
     I slightly refine the mask to remove small gaps
@@ -161,9 +163,8 @@ def refine_segmentation(mask):
     return clean
 
 
-# -----------------------------
 # Select main region
-# -----------------------------
+
 def select_main_region(mask):
     """
     Instead of selecting the largest region blindly,
@@ -292,9 +293,9 @@ def show(img, gray, raw, clean, final, overlay,
     plt.show()
 
 
-# -----------------------------
+
 # Main
-# -----------------------------
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", required=True)
