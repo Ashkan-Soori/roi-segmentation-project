@@ -1,16 +1,16 @@
 ## ROI Segmentation Project
 
-This project implements a classical image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
+This project explores a simple image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
 
-The goal is to extract the main tissue region using a simple but structured approach based on grayscale analysis and thresholding. Instead of relying only on built-in functions, a custom implementation of Otsu thresholding is included to better understand how the threshold is selected from the image histogram.
+The main idea is to extract the primary tissue region using a structured but straightforward approach based on grayscale analysis and thresholding. Instead of relying entirely on built-in functions, I included a basic implementation of Otsu thresholding to better understand how the threshold is actually derived from the image histogram.
 
-After thresholding, the resulting mask is refined using basic morphological operations (opening and closing) to reduce noise and improve the segmentation quality. The final ROI is then obtained by selecting the largest connected component, assuming it corresponds to the main tissue region.
+After thresholding, the resulting mask is often noisy, so it is refined using simple morphological operations (opening and closing). To focus on the relevant part of the image, only the largest connected component is kept as the final ROI, assuming it corresponds to the main tissue region.
 
-The method is intentionally simple and does not depend on color-specific features, making it applicable to both H&E and IHC stained images.
+The method is intentionally simple and does not rely on color-specific features, which makes it applicable to both H&E and IHC stained images.
 
-This project focuses on clarity, reproducibility, and understanding of the segmentation pipeline rather than achieving state-of-the-art performance. The aim is to show how fundamental image processing techniques can be combined into a complete and usable workflow.
+Overall, the goal of this project is not to achieve high-end segmentation performance, but to build a clear, understandable, and reproducible pipeline using fundamental image processing techniques.
 
-A command-line interface (CLI) is provided to allow easy execution of the pipeline on different images.
+To make the workflow easier to use and test, a command-line interface (CLI) is provided, allowing the pipeline to be applied to different images without modifying the code.
 
 This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
 - - -
