@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 """
@@ -35,9 +35,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 
-# -----------------------------
-# Load image
-# -----------------------------
+
+# Loading image
+
 def load_image(path):
     """
     Load the image using PIL.
@@ -51,9 +51,9 @@ def load_image(path):
     return np.array(img)
 
 
-# -----------------------------
+
 # Convert to grayscale
-# -----------------------------
+
 def to_gray(img):
     """
     Convert RGB image to grayscale manually.
@@ -71,9 +71,9 @@ def to_gray(img):
     return gray.astype(np.uint8)
 
 
-# -----------------------------
+
 # Compute threshold
-# -----------------------------
+
 def compute_threshold(gray):
     """
     Compute threshold using an Otsu-style method.
@@ -120,9 +120,9 @@ def compute_threshold(gray):
     return best_t
 
 
-# -----------------------------
+
 # Apply threshold
-# -----------------------------
+
 def apply_threshold(gray, t):
     """
     Create a binary mask.
@@ -137,9 +137,9 @@ def apply_threshold(gray, t):
     return mask.astype(np.uint8)
 
 
-# -----------------------------
+
 # Dilation
-# -----------------------------
+
 def dilation(mask):
     """
     Expand the foreground region.
@@ -164,9 +164,9 @@ def dilation(mask):
     return output
 
 
-# -----------------------------
+
 # Erosion
-# -----------------------------
+
 def erosion(mask):
     """
     Shrink the foreground region.
@@ -191,9 +191,8 @@ def erosion(mask):
     return output
 
 
-# -----------------------------
 # Refinement
-# -----------------------------
+
 def refine_segmentation(mask):
     """
     Improve the segmentation result.
@@ -211,9 +210,9 @@ def refine_segmentation(mask):
     return mask
 
 
-# -----------------------------
+
 # Select main region
-# -----------------------------
+
 def select_main_region(mask):
     """
     Detect connected regions and select the largest one.
@@ -265,9 +264,9 @@ def select_main_region(mask):
     return output
 
 
-# -----------------------------
+
 # Analyze
-# -----------------------------
+
 def analyze(mask):
     """
     Compute how much of the image is classified as foreground.
@@ -287,9 +286,9 @@ def analyze(mask):
     return ratio, quality
 
 
-# -----------------------------
+
 # Overlay
-# -----------------------------
+
 def create_overlay(img, mask):
     """
     Highlight the boundary of the segmented region.
@@ -311,9 +310,9 @@ def create_overlay(img, mask):
     return overlay
 
 
-# -----------------------------
+
 # Visualization
-# -----------------------------
+
 def show_results(img, gray, mask, refined, final, t, ratio, quality):
     """
     Display all steps of the pipeline side by side.
@@ -355,9 +354,9 @@ def show_results(img, gray, mask, refined, final, t, ratio, quality):
     plt.show()
 
 
-# -----------------------------
+
 # Main
-# -----------------------------
+
 if __name__ == "__main__":
     import sys
 
@@ -383,10 +382,4 @@ if __name__ == "__main__":
     print(f"Quality: {quality}")
 
     show_results(img, gray, mask, refined, final, t, ratio, quality)
-
-
-# In[ ]:
-
-
-
 
