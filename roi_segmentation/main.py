@@ -7,16 +7,13 @@
 """
 ROI Segmentation Pipeline
 
-In this implementation, OpenCV is used as a computational framework
-to support image processing operations.
+The segmentation is designed as a controlled and interpretable process.
 
-However, the segmentation process itself is not delegated to predefined routines.
+Instead of assuming a fixed foreground/background relationship,
+both possibilities are evaluated and the most consistent result is selected.
 
-All key stages — including threshold estimation, pixel classification,
-region validation, and region selection — are explicitly defined and controlled.
-
-The objective is to construct a fully interpretable pipeline,
-where each step reflects a deliberate design decision.
+This ensures that the pipeline adapts to different image conditions
+rather than relying on hard-coded assumptions.
 """
 
 import os
@@ -26,21 +23,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def log(msg):
-    print(f"[INFO] {msg}")
-
-
 # -----------------------------
 # Load image
 # -----------------------------
 def load_image(path):
-    """
-    The input is validated explicitly before processing.
-
-    This ensures that any issue related to file access
-    is handled early and clearly.
-    """
-
     if not os.path.exists(path):
         raise FileNotFoundError(f"Image not found: {path}")
 
@@ -53,29 +39,16 @@ def load_image(path):
 
 
 # -----------------------------
-# Convert to grayscale
+# Grayscale
 # -----------------------------
 def to_gray(img):
-    """
-    The segmentation relies on intensity distribution.
-
-    Converting to grayscale allows the analysis
-    to focus on structural variations rather than color.
-    """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
 # -----------------------------
-# Threshold estimation
+# Custom Otsu
 # -----------------------------
 def compute_threshold(gray):
-    """
-    The threshold is derived explicitly from the image histogram.
-
-    This ensures that the separation between foreground and background
-    is determined by a controlled and interpretable criterion.
-    """
-
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
 
     total = gray.size
@@ -102,45 +75,52 @@ def compute_threshold(gray):
         mean_bg = bg_sum / bg_weight
         mean_fg = (total_sum - bg_sum) / fg_weight
 
-        variance = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
+        var = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
 
-        if variance > max_var:
-            max_var = variance
+        if var > max_var:
+            max_var = var
             best_t = t
 
     return int(best_t)
 
 
 # -----------------------------
-# Explicit threshold application
+# Adaptive thresholding (FIXED)
 # -----------------------------
 def apply_threshold(gray, t):
     """
-    Pixel classification is performed explicitly.
+    Instead of assuming which side represents the tissue,
+    both interpretations are evaluated.
 
-    Each pixel is evaluated according to a defined rule:
-    darker intensities correspond to the region of interest.
+    The version that produces a more consistent region
+    (larger connected structure) is selected.
     """
 
-    mask = np.zeros_like(gray, dtype=np.uint8)
+    mask_dark = np.zeros_like(gray, dtype=np.uint8)
+    mask_dark[gray < t] = 255
 
-    mask[gray < t] = 255
+    mask_bright = np.zeros_like(gray, dtype=np.uint8)
+    mask_bright[gray > t] = 255
 
-    return mask
+    # choose the mask with more meaningful structure
+    if np.sum(mask_dark) > np.sum(mask_bright):
+        return mask_dark
+    else:
+        return mask_bright
 
 
 # -----------------------------
-# Refinement
+# Refinement (LESS aggressive)
 # -----------------------------
 def refine_segmentation(mask):
     """
-    The segmentation is refined to improve structural consistency.
+    The refinement step is intentionally moderate.
 
-    This step removes isolated artifacts and reinforces continuity
-    within the detected regions.
+    Excessive filtering can remove valid structures,
+    so the kernel size is kept small.
     """
 
-    kernel = np.ones((5, 5), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
 
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -149,71 +129,46 @@ def refine_segmentation(mask):
 
 
 # -----------------------------
-# Region validation
-# -----------------------------
-def is_valid_region(area, image_size):
-    """
-    A region is considered meaningful only if it satisfies
-    a size constraint relative to the image.
-
-    This introduces an explicit validation criterion.
-    """
-
-    return area > 0.01 * image_size
-
-
-# -----------------------------
-# Region selection
+# Region selection (FIXED)
 # -----------------------------
 def select_main_region(mask):
     """
-    Regions are evaluated using a defined validation rule.
+    Instead of applying a strict threshold on region size,
+    the dominant region is selected directly.
 
-    Among valid regions, the dominant one is selected
-    as the final representation of the tissue.
+    This avoids discarding valid tissue in cases
+    where the segmented region is relatively small.
     """
 
     num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
-    best_label = 1
+    largest = 1
     max_area = 0
 
     for i in range(1, num):
         area = stats[i, cv2.CC_STAT_AREA]
 
-        if is_valid_region(area, mask.size):
-            if area > max_area:
-                max_area = area
-                best_label = i
+        if area > max_area:
+            max_area = area
+            largest = i
 
     final = np.zeros_like(mask)
-    final[labels == best_label] = 255
+    final[labels == largest] = 255
 
     return final, max_area
 
 
 # -----------------------------
-# Visualization enhancement
+# Visualization helpers
 # -----------------------------
 def invert_mask(mask):
-    """
-    The representation is adjusted to improve visual clarity.
-
-    The region of interest is shown in dark contrast
-    against a bright background.
-    """
     return cv2.bitwise_not(mask)
 
 
-# -----------------------------
-# Edge-based overlay
-# -----------------------------
 def overlay_edges(img, mask):
     """
-    The boundary of the segmented region is highlighted.
-
-    This preserves the original image content
-    while clearly indicating the segmentation result.
+    Boundaries are highlighted instead of full regions,
+    preserving the original visual context.
     """
 
     edges = cv2.Canny(mask, 100, 200)
@@ -226,16 +181,9 @@ def overlay_edges(img, mask):
 
 
 # -----------------------------
-# Quantitative analysis
+# Analysis
 # -----------------------------
 def analyze(mask):
-    """
-    The segmentation is interpreted using a quantitative measure.
-
-    The proportion of detected region provides insight
-    into the consistency of the result.
-    """
-
     total = mask.size
     roi = np.sum(mask == 255)
 
@@ -252,7 +200,7 @@ def analyze(mask):
 
 
 # -----------------------------
-# Visualization
+# Show
 # -----------------------------
 def show(img, gray, raw, clean, final, overlay,
          t, area, ratio, quality):
@@ -301,9 +249,10 @@ def main():
     gray = to_gray(img)
 
     t = compute_threshold(gray)
-    raw = apply_threshold(gray, t)
 
+    raw = apply_threshold(gray, t)
     clean = refine_segmentation(raw)
+
     final, area = select_main_region(clean)
 
     clean_display = invert_mask(clean)
