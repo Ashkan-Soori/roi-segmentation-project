@@ -4,227 +4,303 @@
 # In[1]:
 
 
-import argparse
 import os
 import cv2
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
 
+# -----------------------------
+# Simple logging
+# -----------------------------
+def log(message):
+    """
+    I didn't want to use a full logging system here because it would be overkill.
+    This small helper just makes the output easier to read when the pipeline runs.
+    """
+    print(f"[INFO] {message}")
+
+
+# -----------------------------
+# Load image
+# -----------------------------
 def load_image(path):
     """
-    First thing I do is loading the image from disk.
+    First thing I do is check if the file actually exists.
+    It's a small thing, but it prevents confusing errors later.
 
-    I added this check because I ran into issues before where
-    the path was wrong and OpenCV just failed silently.
-    It's better to stop early and show a clear error.
+    Then I load the image using OpenCV and convert it to RGB,
+    because OpenCV reads images in BGR by default, which is not ideal for visualization.
     """
+
     if not os.path.exists(path):
         raise FileNotFoundError(f"Image not found: {path}")
 
     img = cv2.imread(path)
 
-    # Sometimes OpenCV returns None instead of throwing an error
     if img is None:
-        raise ValueError("Could not read the image file.")
+        raise ValueError("The image could not be loaded. Something is wrong with the file.")
 
-    # OpenCV reads images in BGR, but matplotlib expects RGB
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
+# -----------------------------
+# Convert to grayscale
+# -----------------------------
 def to_gray(img):
     """
-    Convert the image to grayscale.
-
-    I do this because thresholding works much better
-    on a single channel instead of RGB.
+    I convert the image to grayscale because thresholding works better on a single channel.
+    It also simplifies the problem quite a bit.
     """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
+# -----------------------------
+# Custom Otsu implementation
+# -----------------------------
 def custom_otsu(gray):
     """
-    Here I tried to implement Otsu thresholding manually.
+    Instead of using cv2.THRESH_OTSU directly,
+    I implemented a simple version myself.
 
-    Instead of directly calling OpenCV's built-in function,
-    I compute the histogram and search for the threshold
-    that maximizes the separation between foreground and background.
+    The idea is to go through all possible thresholds and find the one
+    that best separates foreground and background based on variance.
 
-    This is not the fastest approach, but it makes the logic clearer.
+    This is definitely not the most optimized version,
+    but it makes the logic much clearer.
     """
-    hist = np.histogram(gray.flatten(), bins=256)[0]
-    total = gray.size
 
-    sum_total = sum(i * hist[i] for i in range(256))
+    hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
+    total_pixels = gray.size
 
-    sumB = 0
-    wB = 0
-    max_var = 0
-    threshold = 0
+    best_threshold = 0
+    max_variance = 0
 
-    # I loop over all possible threshold values
+    total_sum = np.dot(np.arange(256), hist)
+
+    background_sum = 0
+    background_weight = 0
+
     for t in range(256):
-        wB += hist[t]
-        if wB == 0:
+        background_weight += hist[t]
+
+        if background_weight == 0:
             continue
 
-        wF = total - wB
-        if wF == 0:
+        foreground_weight = total_pixels - background_weight
+        if foreground_weight == 0:
             break
 
-        sumB += t * hist[t]
+        background_sum += t * hist[t]
 
-        mB = sumB / wB
-        mF = (sum_total - sumB) / wF
+        mean_bg = background_sum / background_weight
+        mean_fg = (total_sum - background_sum) / foreground_weight
 
-        # Between-class variance
-        var_between = wB * wF * (mB - mF) ** 2
+        variance = background_weight * foreground_weight * (mean_bg - mean_fg) ** 2
 
-        if var_between > max_var:
-            max_var = var_between
-            threshold = t
+        if variance > max_variance:
+            max_variance = variance
+            best_threshold = t
 
-    # Apply the threshold we found
-    _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    _, mask = cv2.threshold(gray, best_threshold, 255, cv2.THRESH_BINARY)
 
-    return threshold, mask
+    return best_threshold, mask
 
 
-def clean_mask(mask, k=3):
+# -----------------------------
+# Decide threshold method
+# -----------------------------
+def choose_method(gray):
     """
-    After thresholding, the mask is usually quite noisy.
+    I didn't want to blindly apply Otsu every time.
 
-    I use two simple morphological operations:
-    - Opening: removes small noisy dots
-    - Closing: fills small holes inside the region
+    So here I use a very simple idea:
+    - If the image has low contrast, Otsu might not work well
+    - So I fallback to a fixed threshold
 
-    The kernel size can be adjusted if needed.
+    It's not perfect, but it adds a bit of reasoning to the pipeline.
     """
-    kernel = np.ones((k, k), np.uint8)
 
-    m = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, kernel)
+    std = np.std(gray)
 
-    return m
+    if std < 25:
+        log("Image seems low contrast → using manual threshold")
+        return "manual"
+    else:
+        log("Image has enough contrast → using Otsu")
+        return "otsu"
 
 
-def keep_largest_region(mask):
+# -----------------------------
+# Clean mask
+# -----------------------------
+def clean_mask(mask, kernel_size=3):
     """
-    In most histology images, the main tissue region
-    is the largest connected component.
+    The raw mask is usually messy.
 
-    So here I extract all contours and keep only the biggest one.
+    First I remove small noisy spots using opening,
+    then I fill small holes using closing.
+
+    This step makes a big difference in practice.
     """
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    if len(contours) == 0:
-        return mask
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
-    largest = max(contours, key=cv2.contourArea)
+    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    cleaned = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
 
-    new_mask = np.zeros_like(mask)
-    cv2.drawContours(new_mask, [largest], -1, 255, thickness=-1)
-
-    return new_mask
+    return cleaned
 
 
-def show(img, gray, raw, clean, roi, t):
+# -----------------------------
+# Extract main region
+# -----------------------------
+def extract_largest(mask):
     """
-    This is just for visualization.
+    After cleaning, there might still be multiple regions.
 
-    I like to see all intermediate steps side by side
-    to understand what each part of the pipeline is doing.
+    I assume that the main tissue is the largest one,
+    so I keep only the biggest connected component.
+
+    This is a simple assumption, but it works quite well for this task.
     """
-    plt.figure(figsize=(16, 5))
 
-    plt.subplot(1, 5, 1)
-    plt.imshow(img)
-    plt.title("Original")
-    plt.axis("off")
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
-    plt.subplot(1, 5, 2)
-    plt.imshow(gray, cmap="gray")
-    plt.title("Gray")
-    plt.axis("off")
+    largest_label = 1
+    largest_area = 0
 
-    plt.subplot(1, 5, 3)
-    plt.imshow(raw, cmap="gray")
-    plt.title(f"Raw (t={t})")
-    plt.axis("off")
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
 
-    plt.subplot(1, 5, 4)
-    plt.imshow(clean, cmap="gray")
-    plt.title("Clean")
-    plt.axis("off")
+        if area > largest_area:
+            largest_area = area
+            largest_label = i
 
-    plt.subplot(1, 5, 5)
-    plt.imshow(roi, cmap="gray")
-    plt.title("Final ROI")
-    plt.axis("off")
+    final_mask = np.zeros_like(mask)
+    final_mask[labels == largest_label] = 255
+
+    return final_mask, largest_area
+
+
+# -----------------------------
+# Analyze result
+# -----------------------------
+def analyze_mask(mask):
+    """
+    I wanted to have a simple way to check if the segmentation makes sense.
+
+    So I calculate how much of the image is classified as ROI.
+    If it's too small, something probably went wrong.
+    """
+
+    total_pixels = mask.size
+    roi_pixels = np.sum(mask == 255)
+
+    ratio = roi_pixels / total_pixels
+
+    log(f"ROI ratio: {ratio:.2f}")
+
+    if ratio < 0.05:
+        print("[WARNING] The detected region is very small → result might not be reliable")
+
+    return ratio
+
+
+# -----------------------------
+# Show results
+# -----------------------------
+def show_results(img, gray, raw, clean, final):
+    """
+    I like to visualize each step of the pipeline.
+    It makes debugging much easier and also helps understand what is happening.
+    """
+
+    plt.figure(figsize=(16, 4))
+
+    titles = ["Original", "Gray", "Raw", "Clean", "Final ROI"]
+    images = [img, gray, raw, clean, final]
+
+    for i in range(5):
+        plt.subplot(1, 5, i + 1)
+
+        if i == 0:
+            plt.imshow(images[i])
+        else:
+            plt.imshow(images[i], cmap="gray")
+
+        plt.title(titles[i])
+        plt.axis("off")
 
     plt.tight_layout()
     plt.show()
 
 
+# -----------------------------
+# Main
+# -----------------------------
 def main():
     """
-    This is the main pipeline of the program.
+    This is where everything comes together.
 
-    The idea is simple:
-    1. Load the public image
-    2. Convert it to grayscale
-    3. Apply thresholding (custom Otsu)
-    4. Clean the mask
-    5. Keep only the main region
-    6. Save the result
-    7. Optionally display everything
+    The idea is to keep the pipeline simple but structured:
+    load → process → clean → analyze → save
     """
 
-    parser = argparse.ArgumentParser(description="ROI segmentation CLI tool")
+    parser = argparse.ArgumentParser(description="ROI segmentation pipeline")
 
-    parser.add_argument("--image", required=True, help="Path to input image")
-    parser.add_argument("--kernel", type=int, default=3, help="Kernel size")
-    parser.add_argument("--output", default="outputs", help="Output folder")
-
-    # This flag is optional: only used if we want to display results
-    parser.add_argument("--show", action="store_true", help="Display results")
+    parser.add_argument("--image", required=True)
+    parser.add_argument("--kernel", type=int, default=3)
+    parser.add_argument("--output", default="outputs")
+    parser.add_argument("--show", action="store_true")
 
     args = parser.parse_args()
 
-    print("Loading image...")
+    log("Loading image...")
     img = load_image(args.image)
 
+    log("Converting to grayscale...")
     gray = to_gray(img)
 
-    print("Running custom Otsu...")
-    t, raw = custom_otsu(gray)
+    method = choose_method(gray)
 
-    print("Cleaning mask...")
+    if method == "otsu":
+        log("Running custom Otsu...")
+        t, raw = custom_otsu(gray)
+    else:
+        t = 180
+        log("Using manual threshold")
+        _, raw = cv2.threshold(gray, t, 255, cv2.THRESH_BINARY)
+
+    log(f"Threshold used: {t}")
+
+    log("Cleaning mask...")
     clean = clean_mask(raw, args.kernel)
 
-    print("Extracting ROI...")
-    roi = keep_largest_region(clean)
+    log("Extracting main region...")
+    final, area = extract_largest(clean)
 
-    # Just some quick stats to understand the segmentation result
-    roi_area = np.sum(roi > 0)
-    total_area = roi.size
-    roi_percent = (roi_area / total_area) * 100
+    log(f"ROI area: {area} pixels")
 
-    print(f"Threshold: {t}")
-    print(f"ROI percentage: {roi_percent:.2f}%")
+    ratio = analyze_mask(final)
 
-    # Make sure output folder exists
     os.makedirs(args.output, exist_ok=True)
-
     output_path = os.path.join(args.output, "final_mask.png")
 
-    cv2.imwrite(output_path, roi)
+    cv2.imwrite(output_path, final)
+    log(f"Saved result to {output_path}")
 
-    print(f"Saved to: {output_path}")
+    # Save a small report
+    with open(os.path.join(args.output, "report.txt"), "w") as f:
+        f.write(f"Threshold: {t}\n")
+        f.write(f"Area: {area}\n")
+        f.write(f"Ratio: {ratio:.2f}\n")
 
-    # Show results only if user asked for it
     if args.show:
-        show(img, gray, raw, clean, roi, t)
+        show_results(img, gray, raw, clean, final)
+
+    log("Done.")
 
 
 if __name__ == "__main__":
