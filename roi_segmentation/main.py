@@ -13,7 +13,7 @@ However, the core logic of the pipeline — including threshold selection,
 region filtering, and result analysis — is implemented and controlled manually.
 
 The objective is to avoid treating image processing as a black-box workflow,
-and instead provide a transparent and structured approach.
+and instead provide a transparent, structured, and interpretable approach.
 """
 
 import os
@@ -24,16 +24,10 @@ import matplotlib.pyplot as plt
 
 
 # -----------------------------
-# Logging utility
+# Logging
 # -----------------------------
-def log(message):
-    """
-    A lightweight logging helper.
-
-    The intention here is to keep track of the pipeline execution
-    in a clear and readable way without introducing unnecessary complexity.
-    """
-    print(f"[INFO] {message}")
+def log(msg):
+    print(f"[INFO] {msg}")
 
 
 # -----------------------------
@@ -41,10 +35,12 @@ def log(message):
 # -----------------------------
 def load_image(path):
     """
-    Load the input image and convert it to RGB.
+    The pipeline starts here.
 
-    An explicit check is performed before loading
-    to ensure that invalid paths are handled early.
+    Before doing anything fancy, I make sure the image actually exists.
+    This avoids those frustrating silent errors later.
+
+    Then I load it and convert it to RGB, because OpenCV uses BGR by default.
     """
 
     if not os.path.exists(path):
@@ -53,43 +49,41 @@ def load_image(path):
     img = cv2.imread(path)
 
     if img is None:
-        raise ValueError("The image could not be loaded.")
+        raise ValueError("Failed to load image")
 
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
 # -----------------------------
-# Convert to grayscale
+# Grayscale
 # -----------------------------
 def to_gray(img):
     """
-    Convert the image to grayscale.
+    Instead of working with 3 channels,
+    I reduce the problem to a single intensity channel.
 
-    This reduces the problem to a single intensity channel,
-    which simplifies the thresholding stage.
+    This makes thresholding much more stable and interpretable.
     """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
 
 # -----------------------------
-# Custom Otsu implementation
+# Custom Otsu
 # -----------------------------
 def custom_otsu(gray):
     """
-    Instead of relying on OpenCV's built-in Otsu method,
-    the threshold is computed explicitly.
+    Rather than relying on OpenCV’s built-in Otsu,
+    I explicitly compute the threshold.
 
-    OpenCV is used only for histogram extraction and final thresholding,
-    while the decision process itself is implemented manually.
-
-    This ensures full transparency over how the threshold is selected.
+    This gives full control over the decision process
+    and avoids treating thresholding as a black box.
     """
 
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
     total = gray.size
 
-    best_threshold = 0
-    max_variance = 0
+    best_t = 0
+    max_var = 0
 
     total_sum = np.dot(np.arange(256), hist)
 
@@ -111,130 +105,190 @@ def custom_otsu(gray):
         mean_bg = bg_sum / bg_weight
         mean_fg = (total_sum - bg_sum) / fg_weight
 
-        variance = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
+        var = bg_weight * fg_weight * (mean_bg - mean_fg) ** 2
 
-        if variance > max_variance:
-            max_variance = variance
-            best_threshold = t
+        if var > max_var:
+            max_var = var
+            best_t = t
 
-    _, mask = cv2.threshold(gray, best_threshold, 255, cv2.THRESH_BINARY)
+    _, mask = cv2.threshold(gray, best_t, 255, cv2.THRESH_BINARY)
 
-    return best_threshold, mask
+    return best_t, mask
 
 
 # -----------------------------
-# Adaptive threshold selection
+# Adaptive method
 # -----------------------------
 def choose_method(gray):
     """
-    Introduce a data-driven decision instead of applying a fixed method.
+    I avoid applying a fixed method blindly.
 
-    The choice between Otsu and a fixed threshold
-    is based on the intensity distribution of the image.
+    Instead, I look at the image statistics (standard deviation)
+    and decide if Otsu is reliable.
+
+    This introduces a small but meaningful layer of reasoning.
     """
 
-    std = np.std(gray)
-
-    if std < 25:
-        log("Low contrast detected → using manual threshold")
+    if np.std(gray) < 25:
+        log("Low contrast → manual threshold")
         return "manual"
     else:
-        log("Sufficient contrast → using Otsu")
+        log("Using Otsu")
         return "otsu"
 
 
 # -----------------------------
-# Morphological refinement
+# Morphology
 # -----------------------------
-def clean_mask(mask, kernel_size=3):
+def clean_mask(mask, k=3):
     """
-    Refine the mask using morphological operations.
+    Raw segmentation is rarely clean.
 
-    Opening removes small isolated regions,
-    while closing improves structural continuity.
+    So I refine it:
+    - Opening removes isolated noise
+    - Closing improves structure continuity
     """
 
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    kernel = np.ones((k, k), np.uint8)
 
-    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    cleaned = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-    return cleaned
+    return mask
 
 
 # -----------------------------
-# Remove small regions
+# Remove noise regions
 # -----------------------------
 def remove_small_objects(mask, min_size=1000):
     """
-    Remove connected components below a certain size.
+    Not every detected region is meaningful.
 
-    This introduces a structural constraint,
-    ensuring that only meaningful regions are preserved.
+    Here I filter out small components
+    that are unlikely to be part of the main tissue.
     """
 
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
     cleaned = np.zeros_like(mask)
 
-    for i in range(1, num_labels):
-        area = stats[i, cv2.CC_STAT_AREA]
-
-        if area > min_size:
+    for i in range(1, num):
+        if stats[i, cv2.CC_STAT_AREA] > min_size:
             cleaned[labels == i] = 255
 
     return cleaned
 
 
 # -----------------------------
-# Extract dominant region
+# Largest ROI
 # -----------------------------
 def extract_largest(mask):
     """
-    Select the dominant connected component.
-
-    The assumption is that the primary tissue region
-    corresponds to the largest area.
+    Among all regions, I assume the main tissue
+    corresponds to the largest connected component.
     """
 
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
-    largest_label = 1
-    largest_area = 0
+    largest = 1
+    max_area = 0
 
-    for i in range(1, num_labels):
+    for i in range(1, num):
         area = stats[i, cv2.CC_STAT_AREA]
-
-        if area > largest_area:
-            largest_area = area
-            largest_label = i
+        if area > max_area:
+            max_area = area
+            largest = i
 
     final = np.zeros_like(mask)
-    final[labels == largest_label] = 255
+    final[labels == largest] = 255
 
-    return final, largest_area
+    return final, max_area
 
 
 # -----------------------------
-# Quantitative evaluation
+# Region count
+# -----------------------------
+def count_regions(mask):
+    """
+    Counting regions helps understand segmentation complexity.
+    """
+    num, _, _, _ = cv2.connectedComponentsWithStats(mask)
+    return num - 1
+
+
+# -----------------------------
+# Quality score
+# -----------------------------
+def quality_score(ratio):
+    """
+    A simple qualitative interpretation of ROI size.
+    """
+
+    if ratio > 0.7:
+        return "High"
+    elif ratio > 0.3:
+        return "Medium"
+    else:
+        return "Low"
+
+
+# -----------------------------
+# Overlay mask
+# -----------------------------
+def overlay_mask(img, mask):
+    """
+    Instead of just showing the mask,
+    I overlay it on the original image.
+
+    This makes it much easier to visually verify
+    if the segmentation aligns with the tissue.
+    """
+
+    overlay = img.copy()
+    overlay[mask == 255] = [255, 0, 0]  # red highlight
+
+    return overlay
+
+
+# -----------------------------
+# Bounding box
+# -----------------------------
+def draw_bbox(img, mask):
+    """
+    Draw a bounding box around the detected ROI.
+
+    This gives a spatial summary of the segmentation.
+    """
+
+    coords = np.column_stack(np.where(mask > 0))
+
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+
+    img_copy = img.copy()
+
+    cv2.rectangle(img_copy, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+
+    return img_copy
+
+
+# -----------------------------
+# Analysis
 # -----------------------------
 def analyze_mask(mask):
     """
-    Evaluate the segmentation outcome.
+    I don't want the pipeline to just produce an output.
 
-    The ratio of ROI pixels provides a quantitative indicator
-    of the segmentation quality.
+    This step interprets the result by computing
+    how much of the image is considered ROI.
     """
 
     total = mask.size
-    roi_pixels = np.sum(mask == 255)
+    roi = np.sum(mask == 255)
 
-    ratio = roi_pixels / total
+    ratio = roi / total
 
     log(f"ROI ratio: {ratio:.2f}")
-
-    if ratio < 0.05:
-        print("[WARNING] The detected region is very small")
 
     return ratio
 
@@ -242,23 +296,24 @@ def analyze_mask(mask):
 # -----------------------------
 # Visualization
 # -----------------------------
-def show_results(img, gray, raw, clean, final, threshold, area, ratio):
+def show_results(img, gray, raw, clean, final, overlay, boxed,
+                 t, area, ratio, regions, quality):
     """
-    Display intermediate and final results.
+    This is not just visualization.
 
-    Visualization is used as an analytical tool,
-    with embedded numerical information for interpretation.
+    It is a diagnostic view of the entire pipeline,
+    showing both transformations and interpretation.
     """
 
-    plt.figure(figsize=(16, 5))
+    plt.figure(figsize=(18, 5))
 
-    titles = ["Original", "Gray", "Raw", "Clean", "Final ROI"]
-    images = [img, gray, raw, clean, final]
+    titles = ["Original", "Overlay", "Raw", "Clean", "Final ROI", "BBox"]
+    images = [img, overlay, raw, clean, final, boxed]
 
-    for i in range(5):
-        plt.subplot(1, 5, i + 1)
+    for i in range(6):
+        plt.subplot(1, 6, i + 1)
 
-        if i == 0:
+        if i in [0, 1, 5]:
             plt.imshow(images[i])
         else:
             plt.imshow(images[i], cmap="gray")
@@ -266,75 +321,62 @@ def show_results(img, gray, raw, clean, final, threshold, area, ratio):
         plt.title(titles[i])
         plt.axis("off")
 
-    info = f"Threshold: {threshold}\nArea: {area}\nRatio: {ratio:.2f}"
+    # overlay text
+    plt.subplot(1, 6, 5)
 
-    plt.figtext(0.5, -0.05, info, ha="center",
-                bbox={"facecolor": "white", "alpha": 0.8})
+    text = (
+        f"T: {t}\n"
+        f"Area: {area}\n"
+        f"Ratio: {ratio:.2f}\n"
+        f"Regions: {regions}\n"
+        f"Quality: {quality}"
+    )
+
+    plt.text(5, 20, text, color="red",
+             bbox=dict(facecolor="white", alpha=0.7))
 
     plt.tight_layout()
     plt.show()
 
 
 # -----------------------------
-# Main pipeline
+# Main
 # -----------------------------
 def main():
-    """
-    Structured segmentation workflow:
-
-    loading → transformation → segmentation → refinement → evaluation → output
-
-    Each step is explicitly defined to maintain control over the process.
-    """
-
-    parser = argparse.ArgumentParser(description="ROI segmentation pipeline")
+    parser = argparse.ArgumentParser()
 
     parser.add_argument("--image", required=True)
-    parser.add_argument("--kernel", type=int, default=3)
-    parser.add_argument("--output", default="outputs")
     parser.add_argument("--show", action="store_true")
 
     args = parser.parse_args()
 
-    log("Loading image...")
     img = load_image(args.image)
-
-    log("Converting to grayscale...")
     gray = to_gray(img)
 
     method = choose_method(gray)
 
     if method == "otsu":
-        log("Applying custom Otsu...")
         t, raw = custom_otsu(gray)
     else:
         t = 180
-        log("Applying manual threshold")
         _, raw = cv2.threshold(gray, t, 255, cv2.THRESH_BINARY)
 
-    log(f"Threshold value: {t}")
-
-    log("Refining mask...")
-    clean = clean_mask(raw, args.kernel)
-
-    log("Filtering regions...")
+    clean = clean_mask(raw)
     clean = remove_small_objects(clean)
 
-    log("Extracting dominant region...")
     final, area = extract_largest(clean)
 
     ratio = analyze_mask(final)
+    regions = count_regions(clean)
+    quality = quality_score(ratio)
 
-    os.makedirs(args.output, exist_ok=True)
-    output_path = os.path.join(args.output, "final_mask.png")
-
-    cv2.imwrite(output_path, final)
-    log(f"Result saved to {output_path}")
+    overlay = overlay_mask(img, final)
+    boxed = draw_bbox(img, final)
 
     if args.show:
-        show_results(img, gray, raw, clean, final, t, area, ratio)
-
-    log("Pipeline completed.")
+        show_results(img, gray, raw, clean, final,
+                     overlay, boxed,
+                     t, area, ratio, regions, quality)
 
 
 if __name__ == "__main__":
