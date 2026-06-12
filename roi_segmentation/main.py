@@ -1,79 +1,83 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 """
-ROI Segmentation Pipeline
+ROI Segmentation Pipeline (Manual Implementation)
 
-In this project, I approached the segmentation problem step by step,
-focusing on understanding and controlling each stage of the process.
+In this implementation, I avoided relying on OpenCV and instead tried to
+reconstruct the main steps of a segmentation pipeline using basic tools.
 
-Instead of relying entirely on built-in functions, the main decisions
-— such as threshold computation, pixel classification, and region selection —
-are explicitly defined in the code.
+The goal here is not to optimize performance, but to understand how each
+step works internally.
 
-OpenCV is used as a supporting tool for specific operations,
-while the overall segmentation logic is designed and implemented here.
+Each part of the pipeline is written explicitly:
+- image loading
+- grayscale conversion
+- threshold computation
+- segmentation
+- refinement
+- region selection
+- simple analysis
 
-One important design choice is to use a consistent binary representation
-for the segmented region throughout the pipeline.
-
-Although different conventions exist in the literature (for example,
-representing the region of interest as white), the key idea here is
-to keep the representation consistent across all processing steps
-to avoid ambiguity and unintended errors.
+This makes the behavior of the system transparent and easier to reason about.
 """
 
-import os
-import cv2
-import argparse
 import numpy as np
-import matplotlib.pyplot as plt
+from PIL import Image
 
 
-
-# this part related to Load image 
-
+# -----------------------------
+# Load image
+# -----------------------------
 def load_image(path):
     """
-    I first check if the image exists to avoid unexpected failures later.
+    Instead of using OpenCV, I use PIL to load the image.
+
+    The image is converted to RGB format and then to a NumPy array
+    so that it can be processed numerically.
     """
 
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Image not found: {path}")
-
-    img = cv2.imread(path)
-
-    if img is None:
-        raise ValueError("Unable to read the image")
-
-    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = Image.open(path).convert("RGB")
+    return np.array(img)
 
 
-
+# -----------------------------
 # Convert to grayscale
-
+# -----------------------------
 def to_gray(img):
     """
-    The segmentation is based on intensity values,
-    so I convert the image to grayscale.
+    Color information is not necessary for segmentation in this case.
+
+    I convert the image to grayscale manually using a weighted sum
+    of the RGB channels. These weights reflect human perception.
     """
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    r = img[:, :, 0]
+    g = img[:, :, 1]
+    b = img[:, :, 2]
+
+    gray = 0.299 * r + 0.587 * g + 0.114 * b
+
+    return gray.astype(np.uint8)
 
 
-
-# Compute threshold (manual Otsu)
-
+# -----------------------------
+# Compute threshold (Otsu-style)
+# -----------------------------
 def compute_threshold(gray):
     """
-    The threshold is computed manually instead of calling a built-in function.
+    The threshold is computed by analyzing the distribution of pixel intensities.
 
-    This keeps the decision process visible and understandable.
+    The idea is to find a value that best separates the image into two groups:
+    background and foreground.
+
+    This is done by maximizing the variance between the two groups.
     """
 
-    hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
+    hist, _ = np.histogram(gray, bins=256, range=(0, 256))
 
     total = gray.size
     total_sum = np.dot(np.arange(256), hist)
@@ -81,8 +85,8 @@ def compute_threshold(gray):
     bg_sum = 0
     bg_weight = 0
 
-    best_t = 0
     max_var = 0
+    best_t = 0
 
     for t in range(256):
         bg_weight += hist[t]
@@ -105,127 +109,151 @@ def compute_threshold(gray):
             max_var = var
             best_t = t
 
-    return int(best_t)
+    return best_t
 
 
-
-# Apply threshold (adaptive)
-
+# -----------------------------
+# Apply threshold
+# -----------------------------
 def apply_threshold(gray, t):
     """
-    Instead of fixing the foreground definition in advance,
-I evaluate two possible thresholding outcomes:
+    Once the threshold is known, each pixel is classified.
 
-- one where pixels below the threshold are treated as foreground
-- one where pixels above the threshold are treated as foreground
+    Pixels below the threshold are treated as foreground (0),
+    while the rest are background (255).
 
-I then compare these candidates based on the size of their connected regions,
-and select the one that forms a more coherent and meaningful structure.
+    This creates a binary segmentation mask.
     """
 
-    mask_dark = np.full_like(gray, 255, dtype=np.uint8)
-    mask_dark[gray < t] = 0
+    mask = np.where(gray < t, 0, 255)
 
-    mask_bright = np.full_like(gray, 255, dtype=np.uint8)
-    mask_bright[gray > t] = 0
-
-    def largest_component(mask):
-        binary = np.where(mask == 0, 1, 0).astype(np.uint8)
-        num, _, stats, _ = cv2.connectedComponentsWithStats(binary)
-
-        if num <= 1:
-            return 0
-
-        return max(stats[1:, cv2.CC_STAT_AREA])
-
-    if largest_component(mask_dark) > largest_component(mask_bright):
-        return mask_dark
-    else:
-        return mask_bright
+    return mask.astype(np.uint8)
 
 
-
-# Refinement
-
-def refine_segmentation(mask):
+# -----------------------------
+# Dilation (manual)
+# -----------------------------
+def dilation(mask):
     """
-    I slightly refine the mask to remove small gaps
-    while preserving the overall structure.
+    Dilation expands the foreground region.
+
+    A pixel becomes foreground if at least one of its neighbors
+    is already part of the foreground.
     """
-
-    temp = np.where(mask == 0, 255, 0).astype(np.uint8)
-
-    kernel = np.ones((2, 2), np.uint8)
-    temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel)
-
-    clean = np.where(temp == 255, 0, 255).astype(np.uint8)
-
-    return clean
-
-
-# Select main region
-
-def select_main_region(mask):
-    """
-    Instead of selecting the largest region blindly,
-    I also consider its position within the image.
-
-    Regions that are both large and relatively central
-    are more likely to correspond to the tissue.
-    """
-
-    binary = np.where(mask == 0, 1, 0).astype(np.uint8)
-
-    num, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
 
     h, w = mask.shape
+    output = mask.copy()
 
-    best_label = 1
-    best_score = 0
+    for i in range(1, h - 1):
+        for j in range(1, w - 1):
 
-    for i in range(1, num):
-        area = stats[i, cv2.CC_STAT_AREA]
+            neighborhood = mask[i-1:i+2, j-1:j+2]
 
-        x = stats[i, cv2.CC_STAT_LEFT]
-        y = stats[i, cv2.CC_STAT_TOP]
-        width = stats[i, cv2.CC_STAT_WIDTH]
-        height = stats[i, cv2.CC_STAT_HEIGHT]
+            if np.any(neighborhood == 0):
+                output[i, j] = 0
+            else:
+                output[i, j] = 255
 
-        cx = x + width // 2
-        cy = y + height // 2
-
-        dist = np.sqrt((cx - w/2)**2 + (cy - h/2)**2)
-
-        score = area - 0.5 * dist
-
-        if score > best_score:
-            best_score = score
-            best_label = i
-
-    final = np.full_like(mask, 255)
-    final[labels == best_label] = 0
-
-    return final, best_score
+    return output
 
 
 # -----------------------------
-# Overlay edges
+# Erosion (manual)
 # -----------------------------
-def overlay_edges(img, mask):
+def erosion(mask):
     """
-    I highlight the boundary of the segmented region,
-    so the original image remains visible.
+    Erosion shrinks the foreground region.
+
+    A pixel remains foreground only if all of its neighbors
+    are also foreground.
     """
 
-    binary = np.where(mask == 0, 255, 0).astype(np.uint8)
+    h, w = mask.shape
+    output = mask.copy()
 
-    edges = cv2.Canny(binary, 100, 200)
-    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
+    for i in range(1, h - 1):
+        for j in range(1, w - 1):
 
-    overlay = img.copy()
-    overlay[edges > 0] = [255, 0, 0]
+            neighborhood = mask[i-1:i+2, j-1:j+2]
 
-    return overlay
+            if np.all(neighborhood == 0):
+                output[i, j] = 0
+            else:
+                output[i, j] = 255
+
+    return output
+
+
+# -----------------------------
+# Refinement (closing)
+# -----------------------------
+def refine_segmentation(mask):
+    """
+    This step improves the segmentation result.
+
+    I use a combination of dilation and erosion (closing)
+    to fill small gaps and smooth the region boundaries.
+
+    The goal is not to drastically change the shape,
+    but to make the region more coherent.
+    """
+
+    return erosion(dilation(mask))
+
+
+# -----------------------------
+# Connected Components (manual)
+# -----------------------------
+def select_main_region(mask):
+    """
+    The segmentation may contain multiple regions.
+
+    Here, I identify connected components manually
+    and select the largest one, assuming it represents
+    the main region of interest.
+    """
+
+    h, w = mask.shape
+    visited = np.zeros_like(mask, dtype=bool)
+
+    best_region = []
+
+    def dfs(x, y):
+        stack = [(x, y)]
+        region = []
+
+        while stack:
+            i, j = stack.pop()
+
+            if i < 0 or i >= h or j < 0 or j >= w:
+                continue
+
+            if visited[i, j] or mask[i, j] != 0:
+                continue
+
+            visited[i, j] = True
+            region.append((i, j))
+
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    stack.append((i + dx, j + dy))
+
+        return region
+
+    for i in range(h):
+        for j in range(w):
+            if not visited[i, j] and mask[i, j] == 0:
+                region = dfs(i, j)
+
+                if len(region) > len(best_region):
+                    best_region = region
+
+    output = np.full_like(mask, 255)
+
+    for i, j in best_region:
+        output[i, j] = 0
+
+    return output
 
 
 # -----------------------------
@@ -233,9 +261,10 @@ def overlay_edges(img, mask):
 # -----------------------------
 def analyze(mask):
     """
-    I compute the proportion of the image classified as foreground.
+    This step provides a simple interpretation of the result.
 
-    This helps interpret whether the segmentation is reasonable.
+    I compute how much of the image is classified as foreground.
+    Based on that, I assign a rough quality label.
     """
 
     total = mask.size
@@ -251,82 +280,4 @@ def analyze(mask):
         quality = "Low"
 
     return ratio, quality
-
-
-# -----------------------------
-# Visualization
-# -----------------------------
-def show(img, gray, raw, clean, final, overlay,
-         t, area, ratio, quality):
-
-    plt.figure(figsize=(18, 5))
-
-    titles = ["Original", "Gray", "Raw",
-              "Clean", "Final ROI", "Overlay"]
-
-    images = [img, gray, raw, clean, final, overlay]
-
-    for i in range(6):
-        ax = plt.subplot(1, 6, i + 1)
-
-        if i in [0, 5]:
-            ax.imshow(images[i])
-        else:
-            ax.imshow(images[i], cmap="gray")
-
-        ax.set_title(titles[i])
-        ax.axis("off")
-
-    ax = plt.subplot(1, 6, 5)
-
-    ax.text(
-        0.02, 0.95,
-        f"T: {t}\nArea: {int(area)}\nRatio: {ratio:.2f}\nQuality: {quality}",
-        color="red",
-        fontsize=10,
-        verticalalignment='top',
-        transform=ax.transAxes,
-        bbox=dict(facecolor="white", alpha=0.85)
-    )
-
-    plt.tight_layout()
-    plt.show()
-
-
-
-# Main
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True)
-    parser.add_argument("--show", action="store_true")
-
-    args = parser.parse_args()
-
-    img = load_image(args.image)
-    gray = to_gray(img)
-
-    t = compute_threshold(gray)
-
-    raw = apply_threshold(gray, t)
-    clean = refine_segmentation(raw)
-
-    final, area = select_main_region(clean)
-
-    ratio, quality = analyze(final)
-    overlay = overlay_edges(img, final)
-
-    if args.show:
-        show(img, gray, raw, clean, final,
-             overlay, t, area, ratio, quality)
-
-
-if __name__ == "__main__":
-    main()
-
-
-# In[ ]:
-
-
-
 
