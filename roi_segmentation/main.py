@@ -7,14 +7,23 @@
 """
 ROI Segmentation Pipeline
 
-In this implementation, I tried to keep the entire process consistent
-from beginning to end.
+In this project, I approached the segmentation problem step by step,
+focusing on understanding and controlling each stage of the process.
 
-One important decision I made was to define the region of interest
-as black (0) and the background as white (255), and to keep this
-definition unchanged across all steps.
+Instead of relying entirely on built-in functions, the main decisions
+— such as threshold computation, pixel classification, and region selection —
+are explicitly defined in the code.
 
-This avoids confusion and makes the pipeline easier to follow.
+OpenCV is used as a supporting tool for specific operations,
+while the overall segmentation logic is designed and implemented here.
+
+One important design choice is to use a consistent binary representation
+for the segmented region throughout the pipeline.
+
+Although different conventions exist in the literature (for example,
+representing the region of interest as white), the key idea here is
+to keep the representation consistent across all processing steps
+to avoid ambiguity and unintended errors.
 """
 
 import os
@@ -29,9 +38,7 @@ import matplotlib.pyplot as plt
 # -----------------------------
 def load_image(path):
     """
-    Before doing anything, I check that the image actually exists.
-
-    It helps catch mistakes early instead of failing silently later.
+    I first check if the image exists to avoid unexpected failures later.
     """
 
     if not os.path.exists(path):
@@ -50,9 +57,8 @@ def load_image(path):
 # -----------------------------
 def to_gray(img):
     """
-    The segmentation is based on intensity, not color.
-
-    So I convert the image to grayscale to simplify the problem.
+    The segmentation is based on intensity values,
+    so I convert the image to grayscale.
     """
     return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
@@ -62,9 +68,9 @@ def to_gray(img):
 # -----------------------------
 def compute_threshold(gray):
     """
-    I compute the threshold manually instead of calling a built-in function.
+    The threshold is computed manually instead of calling a built-in function.
 
-    This way, the decision process is fully visible and controlled.
+    This keeps the decision process visible and understandable.
     """
 
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
@@ -107,22 +113,22 @@ def compute_threshold(gray):
 # -----------------------------
 def apply_threshold(gray, t):
     """
-    I don't assume which side of the threshold corresponds to tissue.
+    I generate two possible interpretations of the segmentation:
 
-    So I create two candidates and evaluate them based on structure.
+    - darker pixels as foreground
+    - brighter pixels as foreground
+
+    Then I select the one that forms a more coherent structure.
     """
 
-    # Candidate 1: darker pixels = tissue
     mask_dark = np.full_like(gray, 255, dtype=np.uint8)
     mask_dark[gray < t] = 0
 
-    # Candidate 2: brighter pixels = tissue
     mask_bright = np.full_like(gray, 255, dtype=np.uint8)
     mask_bright[gray > t] = 0
 
-    def largest_component_area(mask):
+    def largest_component(mask):
         binary = np.where(mask == 0, 1, 0).astype(np.uint8)
-
         num, _, stats, _ = cv2.connectedComponentsWithStats(binary)
 
         if num <= 1:
@@ -130,10 +136,7 @@ def apply_threshold(gray, t):
 
         return max(stats[1:, cv2.CC_STAT_AREA])
 
-    area_dark = largest_component_area(mask_dark)
-    area_bright = largest_component_area(mask_bright)
-
-    if area_dark > area_bright:
+    if largest_component(mask_dark) > largest_component(mask_bright):
         return mask_dark
     else:
         return mask_bright
@@ -144,23 +147,15 @@ def apply_threshold(gray, t):
 # -----------------------------
 def refine_segmentation(mask):
     """
-    Here I improve the mask slightly.
-
-    I only apply a gentle closing operation to fill small gaps,
-    without changing the overall structure too much.
-
-    Important: I keep the same representation:
-    tissue = 0, background = 255
+    I slightly refine the mask to remove small gaps
+    while preserving the overall structure.
     """
 
-    # temporary conversion for OpenCV (foreground must be white)
     temp = np.where(mask == 0, 255, 0).astype(np.uint8)
 
     kernel = np.ones((2, 2), np.uint8)
-
     temp = cv2.morphologyEx(temp, cv2.MORPH_CLOSE, kernel)
 
-    # convert back to original format
     clean = np.where(temp == 255, 0, 255).astype(np.uint8)
 
     return clean
@@ -171,10 +166,11 @@ def refine_segmentation(mask):
 # -----------------------------
 def select_main_region(mask):
     """
-    Multiple regions may exist.
+    Instead of selecting the largest region blindly,
+    I also consider its position within the image.
 
-    Instead of just picking the largest blindly,
-    I also consider how centrally located the region is.
+    Regions that are both large and relatively central
+    are more likely to correspond to the tissue.
     """
 
     binary = np.where(mask == 0, 1, 0).astype(np.uint8)
@@ -216,9 +212,8 @@ def select_main_region(mask):
 # -----------------------------
 def overlay_edges(img, mask):
     """
-    I highlight only the boundary of the detected region.
-
-    This makes the segmentation easier to interpret visually.
+    I highlight the boundary of the segmented region,
+    so the original image remains visible.
     """
 
     binary = np.where(mask == 0, 255, 0).astype(np.uint8)
@@ -237,9 +232,9 @@ def overlay_edges(img, mask):
 # -----------------------------
 def analyze(mask):
     """
-    I compute how much of the image is considered tissue.
+    I compute the proportion of the image classified as foreground.
 
-    This gives a quick idea of whether the segmentation looks reasonable.
+    This helps interpret whether the segmentation is reasonable.
     """
 
     total = mask.size
@@ -281,7 +276,6 @@ def show(img, gray, raw, clean, final, overlay,
         ax.set_title(titles[i])
         ax.axis("off")
 
-    # متن بالا سمت چپ بدون تداخل
     ax = plt.subplot(1, 6, 5)
 
     ax.text(
