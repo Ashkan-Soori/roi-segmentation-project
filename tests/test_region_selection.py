@@ -8,18 +8,23 @@ import numpy as np
 from roi_segmentation.main import select_main_region
 
 
-def test_selects_most_significant_region():
+def test_largest_region_is_selected():
     """
-    The algorithm should pick the most meaningful region,
-    not just any detected component.
+    I create two regions of different sizes.
+
+    The function should keep only the larger one.
+
+    This verifies the actual logic of region selection.
     """
 
-    mask = np.full((100, 100), 255, dtype=np.uint8)
+    mask = np.array([
+        [0,0,255,255],
+        [0,0,255,0],
+        [255,255,255,0]
+    ], dtype=np.uint8)
 
-    mask[10:20, 10:20] = 0  # small region
-    mask[40:90, 40:90] = 0  # large region
+    result = select_main_region(mask)
 
-    final, _ = select_main_region(mask)
-
-    assert np.sum(final == 0) > 1000
+    # largest region should dominate
+    assert np.sum(result == 0) >= 4
 

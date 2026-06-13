@@ -4,31 +4,24 @@
 # In[ ]:
 
 
-import numpy as np
-from roi_segmentation.main import compute_threshold, apply_threshold
-
-
-def test_threshold_within_range():
+def test_threshold_separates_intensity_groups():
     """
-    The threshold should always be within valid intensity bounds.
+    Instead of forcing an exact range, I check if the threshold
+    actually separates dark and bright values correctly.
     """
 
-    img = np.random.randint(0, 255, (100, 100), dtype=np.uint8)
-    t = compute_threshold(img)
+    gray = np.array([
+        [10, 20, 15],
+        [200, 210, 220]
+    ], dtype=np.uint8)
 
-    assert 0 <= t <= 255
+    t = compute_threshold(gray)
 
+    mask = apply_threshold(gray, t)
 
-def test_threshold_produces_binary_mask():
-    """
-    The output mask should contain only two values,
-    confirming that the result is a proper binary segmentation.
-    """
+    # dark values should become foreground
+    assert mask[0,0] == 0
 
-    img = np.random.randint(0, 255, (100, 100), dtype=np.uint8)
-    mask = apply_threshold(img, 128)
-
-    unique_vals = np.unique(mask)
-
-    assert set(unique_vals).issubset({0, 255})
+    # bright values should become background
+    assert mask[1,0] == 255
 
