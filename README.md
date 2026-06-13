@@ -59,7 +59,7 @@ roi-segmentation-project/
    ├── test_region_selection.py
    ├── test_analysis.py
    ├── test_overlay.py
-│   └── test_pipeline.py
+   └── test_pipeline.py
 │       # Each test focuses on one part of the pipeline.
 │       # Instead of checking fixed outputs, the tests verify
 │       # that the behavior of the code is correct.
