@@ -74,7 +74,7 @@ roi-segmentation-project/
        # Project documentation and explanation.
 
 ├── requirements.txt             
-│       # List of required Python libraries.
+       # List of required Python libraries.
 
 ├── .gitignore
 ├── LICENSE
