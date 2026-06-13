@@ -192,13 +192,8 @@ Default mode (Otsu thresholding):
 python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg
 
 ```
-Manual thresholding example:
 
-```bash
 
-python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg --method manual --threshold 180
-
-```
 
 ## Running the Tests
 Before running the tests, make sure:
@@ -219,7 +214,7 @@ This will automatically discover and execute all test files inside the tests/ di
 If everything is working correctly, you should see an output similar to:
 ```Markdown
 
-9 passed in 0.xx seconds
+10 passed in 0.xx seconds
 
 ```
 This confirms that all components of the segmentation pipeline are functioning as expected
