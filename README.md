@@ -38,7 +38,7 @@ A visualization of the complete segmentation workflow.
 ## Project Structure
 
 ```Markdown
-##Project Structure
+##Project Structur
 
 The project is organized in a simple and clear way so that each part of the pipeline
 and testing process is easy to understand and work with.
