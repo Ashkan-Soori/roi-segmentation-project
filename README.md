@@ -120,7 +120,7 @@ cd roi-segmentation-project
 
 2. Create a Virtual Environment
 
-Although  mandatory, it is strongly recommended to create a virtual environment to keep dependencies isolated from your system Python installation.
+Although not mandatory, it is strongly recommended to create a virtual environment to keep dependencies isolated from your system Python installation.
 
 On macOS / Linux:
 
