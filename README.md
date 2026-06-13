@@ -157,7 +157,6 @@ This will install all necessary libraries including:
 
 
 numpy
-opencv-python
 matplotlib
 pytest
 coverage
