@@ -38,9 +38,9 @@ A visualization of the complete segmentation workflow.
 ## Project Structure
 
 ```Markdown
-##Project Structur
+##Project Structure
 
-The project is organized in a simple and clear way so that each part of the pipeline
+I tried to show that this project which is organized in a simple and clear way so that each part of the pipeline
 and testing process is easy to understand and work with.
 
 roi-segmentation-project/
