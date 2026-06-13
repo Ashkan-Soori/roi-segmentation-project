@@ -1,29 +1,39 @@
 ## ROI Segmentation Project
 
-This project explores a simple image processing pipeline for Region of Interest (ROI) segmentation in histopathology images.
+The main objective is to identify and extract the primary tissue region while keeping every step of the process explicit and understandable. Instead of relying on OpenCV functions that directly perform segmentation, the pipeline is implemented manually using NumPy, making it easier to follow how each stage contributes to the final result.
 
-The main idea is to extract the primary tissue region using a structured but straightforward approach based on grayscale analysis and thresholding. Instead of relying entirely on built-in functions, I included a basic implementation of Otsu thresholding to better understand how the threshold is actually derived from the image histogram.
+The workflow begins by converting the image to grayscale and computing a threshold based on an Otsu-inspired approach. Rather than calling a built-in thresholding function, the threshold is calculated directly from the image histogram, allowing the underlying logic to remain visible.
 
-After thresholding, the resulting mask is often noisy, so it is refined using simple morphological operations (opening and closing). To focus on the relevant part of the image, only the largest connected component is kept as the final ROI, assuming it corresponds to the main tissue region.
+The resulting binary mask is then refined through morphological operations, including dilation and erosion. These operations help reduce noise, close small gaps, and produce a more coherent representation of the tissue region.
 
-The method is intentionally simple and does not rely on color-specific features, which makes it applicable to both H&E and IHC stained images.
+To isolate the most relevant structure, connected-component analysis is applied and the largest connected region is selected as the final ROI. This choice is based on the assumption that the main tissue area is usually the dominant connected structure in the image.
 
-Overall, the goal of this project is not to achieve high-end segmentation performance, but to build a clear, understandable, and reproducible pipeline using fundamental image processing techniques.
+One advantage of this approach is that it does not depend on stain-specific color information. As a result, the same workflow can be applied to both H&E and IHC images without requiring modifications to the segmentation procedure.
 
-To make the workflow easier to use and test, a command-line interface (CLI) is provided, allowing the pipeline to be applied to different images without modifying the code.
+The purpose of this project is not to develop a highly optimized segmentation method, but rather to build a transparent and reproducible workflow that demonstrates how fundamental image processing techniques can be combined to extract meaningful regions from histopathology images.
 
-This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics curriculum at the University of Bologna.
-- - -
+To make the project easier to use, a command-line interface (CLI) is included, allowing the pipeline to be executed on different images without changing the source code.
 
-## What the Project Does
-
-The segmentation pipeline follows a clear and structured sequence of steps. It starts by loading the input image and converting it to grayscale, since thresholding methods typically work better on single-channel data. A threshold is then applied (either using Otsu’s method or a manual value) to separate the foreground from the background.
-
-The resulting mask is usually noisy, so it is refined using basic morphological operations to improve its quality. The intermediate results, along with the final segmentation, can be displayed to better understand how each step affects the outcome. At the same time, the final mask is automatically saved for further use.
-
-Overall, the idea behind this project is to show how relatively simple and well-understood image processing techniques can be combined into a complete workflow to solve a basic segmentation problem, without relying on more complex deep learning approaches.
+This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics program at the University of Bologna.
 
 - - -
+## What the project does
+
+
+This project automatically identifies and extracts the main tissue region from a histopathology image.
+
+The image is first converted to grayscale and segmented using a threshold computed from its intensity distribution. The resulting binary mask is then refined through morphological operations to reduce noise and improve region continuity.
+
+Once the mask has been cleaned, connected regions are analyzed and the largest connected component is selected as the final Region of Interest (ROI). The pipeline also provides a basic quantitative analysis of the detected region and generates visual outputs showing each processing stage as well as the final segmentation boundaries overlaid on the original image.
+
+The final output consists of:
+
+A binary segmentation mask.
+The extracted Region of Interest (ROI).
+An overlay highlighting the detected tissue boundaries.
+A tissue coverage ratio.
+A qualitative label based on the detected tissue area.
+A visualization of the complete segmentation workflow.
 
 ## Project Structure
 
