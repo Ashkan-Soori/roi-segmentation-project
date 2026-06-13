@@ -46,17 +46,17 @@ and testing process is easy to understand and work with.
 roi-segmentation-project/
 
 ├── roi_segmentation/            
-│   ├── __init__.py
-│   └── main.py                  
-│       # This file contains the full segmentation pipeline
-│       # including loading the image, thresholding, refinement,
-│       # region selection, analysis, and visualization.
+   ├── __init__.py
+   └── main.py                  
+       # This file contains the full segmentation pipeline
+       # including loading the image, thresholding, refinement,
+       # region selection, analysis, and visualization.
 
 ├── tests/                       
-│   ├── test_load_image.py
-│   ├── test_threshold.py
-│   ├── test_refinement.py
-│   ├── test_region_selection.py
+   ├── test_load_image.py
+   ├── test_threshold.py
+   ├── test_refinement.py
+   ├── test_region_selection.py
 │   ├── test_analysis.py
 │   ├── test_overlay.py
 │   └── test_pipeline.py
