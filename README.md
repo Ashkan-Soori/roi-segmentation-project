@@ -62,7 +62,7 @@ roi-segmentation-project/
    └── test_pipeline.py
        # Each test focuses on one part of the pipeline.
        # Instead of checking fixed outputs, the tests verify
-│       # that the behavior of the code is correct.
+       # that the behavior of the code is correct.
 
 ├── data/                        
 │       # This part Contains sample input images used for testing the pipeline.
