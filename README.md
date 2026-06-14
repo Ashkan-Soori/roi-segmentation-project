@@ -1,19 +1,24 @@
 ## ROI Segmentation Project
 
-The main objective is to identify and extract the primary tissue region while keeping every step of the process explicit and understandable. Instead of relying on OpenCV functions that directly perform segmentation, the pipeline is implemented manually using NumPy, making it easier to follow how each stage contributes to the final result.
+The main idea of this project is to extract the main tissue region from histopathology images in a simple and understandable way.
 
-The workflow begins by converting the image to grayscale and computing a threshold based on an Otsu-inspired approach. Rather than calling a built-in thresholding function, the threshold is calculated directly from the image histogram, allowing the underlying logic to remain visible.
+Instead of using ready-made functions from libraries like OpenCV, I tried to build the whole pipeline step by step using NumPy. This way, I could actually understand what is happening inside the algorithm, not just use a black-box function.
 
-The resulting binary mask is then refined through morphological operations, including dilation and erosion. These operations help reduce noise, close small gaps, and produce a more coherent representation of the tissue region.
+At the beginning, the image is converted to grayscale, because working with one channel is much easier and segmentation is mostly based on intensity. Then, I compute a threshold automatically using a method similar to Otsu. I implemented it manually so I could see how the threshold is chosen based on the image histogram.
 
-To isolate the most relevant structure, connected-component analysis is applied and the largest connected region is selected as the final ROI. This choice is based on the assumption that the main tissue area is usually the dominant connected structure in the image.
+After that, I create a binary mask and try to clean it using simple operations like dilation and erosion. These steps help remove small noise and connect broken parts of the tissue.
 
-One advantage of this approach is that it does not depend on stain-specific color information. As a result, the same workflow can be applied to both H&E and IHC images without requiring modifications to the segmentation procedure.
+Then, I keep only the largest connected region, since in most cases the main tissue is the biggest part of the image. This helps get rid of small unwanted regions.
 
-The purpose of this project is not to develop a highly optimized segmentation method, but rather to build a transparent and reproducible workflow that demonstrates how fundamental image processing techniques can be combined to extract meaningful regions from histopathology images.
+One problem I noticed was that sometimes small white holes appear inside the tissue. So I added a step to fill these holes, which makes the final result look cleaner and more consistent.
 
-To make the project easier to use, a command-line interface (CLI) is included, allowing the pipeline to be executed on different images without changing the source code.
+To better see the result, I also create an overlay image where the boundary of the segmented region is drawn on top of the original image. I made the boundary a bit thicker so it is easier to notice.
 
+Another nice thing about this approach is that it does not depend on specific colors, so it can be used on different types of histopathology images without changing anything.
+
+Overall, the goal of this project is not to build the best or fastest segmentation method, but to understand how these basic techniques work together in a clear and simple pipeline.
+
+Finally, I added a simple command-line interface so the code can be run on different images without changing the source code.
 This repository was developed as part of the final examination for the Software and Computing course in the Applied Physics program at the University of Bologna.
 
 - - -
