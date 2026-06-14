@@ -352,23 +352,27 @@ For full licensing details and usage terms, please refer to the official Kaggle 
 
 ## Example Output
 
-Below is an example of the full segmentation pipeline applied to a sample HER2 histopathology image.
+Below is an example of the full ROI segmentation pipeline applied to a sample HER2 histopathology image.
 
-The figure displays all main processing stages side by side:
+The figure shows all main processing stages from left to right:
 
-The original RGB image
-The grayscale conversion
-The raw binary mask obtained after thresholding
-The cleaned mask after morphological operations
+- Original RGB image  
+- Grayscale conversion  
+- Initial binary mask after automatic thresholding  
+- Refined mask after morphological operations  
+- Final ROI after selecting the main region and removing internal holes  
+- Overlay image with highlighted boundaries  
 
-These outputs allow the user to visually compare the effect of thresholding and morphology on the final ROI segmentation result.
+This pipeline not only segments the tissue region, but also improves the result by:
+- Removing noise using morphology  
+- Keeping only the largest connected region  
+- Filling small holes inside the tissue  
+- Highlighting the final boundary more clearly  
 
-The examples below show results using both the default Otsu method and manual thresholding.
+### Final Result
 
+<img src="outputs/final_pipeline.png" width="900"/>
 
-### Otsu Method
-
-<img src="outputs/Otsu_threshold.png" width="800"/>
 
 ### Manual Threshold (180)
 
