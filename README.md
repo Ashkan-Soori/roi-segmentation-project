@@ -194,7 +194,7 @@ python -m coverage report
 
 ```bash
 
-python roi_segmentation/main.py data/0_1009_0_0_0.jpg
+python roi_segmentation/main.py --image data/0_1009_0_0_0.jpg
 
 ```
 
