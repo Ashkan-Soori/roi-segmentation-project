@@ -371,12 +371,10 @@ This pipeline not only segments the tissue region, but also improves the result 
 
 ### Final Result
 
-<img src="outputs/final_pipeline.png" width="900"/>
+<img src="outputs/final_pipeline.png" width="800"/>
 
 
-### Manual Threshold (180)
 
-<img src="outputs/Manual_threshold_180.png" width="800"/>
 
 - - -
 
