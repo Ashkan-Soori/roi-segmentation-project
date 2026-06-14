@@ -190,11 +190,11 @@ python -m coverage report
 ```
 6. Run the Application
 
-Default mode (Otsu thresholding):
+
 
 ```bash
 
-python -m roi_segmentation.main --image data/0_1009_0_0_0.jpg
+python roi_segmentation/main.py data/0_1009_0_0_0.jpg
 
 ```
 
