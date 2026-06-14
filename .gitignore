@@ -23,3 +23,13 @@ outputs/
 # System
 .DS_Store
 Thumbs.db
+
+# Python environments
+roi_env/
+venv/
+.env/
+
+# Extra safety
+**/site-packages/
+
+!outputs/final_pipeline.png
