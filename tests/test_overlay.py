@@ -16,5 +16,12 @@ def test_overlay_highlights_boundaries():
 
     overlay = create_overlay(img, mask)
 
+    # 🔥 check that something changed
     assert not np.array_equal(overlay, img)
+
+    # 🔥 check that boundary pixels are modified
+    # boundary around the square (approx)
+    boundary_pixel = overlay[5,5]
+
+    assert not np.array_equal(boundary_pixel, img[5,5])
 
