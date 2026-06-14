@@ -7,13 +7,17 @@
 """
 ROI Segmentation Pipeline (Manual + Coherence-Based Evaluation)
 
-In this project, I tried to build a simple image segmentation pipeline
-from scratch, without using OpenCV or advanced libraries.
+In this project, I tried to build a full image segmentation pipeline from scratch.
 
-The idea is to understand each step instead of relying on built-in functions.
+Instead of using ready-made functions from libraries like OpenCV,
+I implemented everything manually so I could really understand what is happening
+in each step.
+
+The main idea is to take a medical image and extract the region of interest (ROI),
+which in this case is the tissue area.
 
 The pipeline is:
-image → grayscale → threshold → clean → main region → analysis → visualization
+image → grayscale → threshold → clean → main region → hole filling → analysis → visualization
 """
 
 import matplotlib
@@ -24,30 +28,31 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 
-# Here I load the image
-# I use PIL because it is simple and reliable
-# Then I convert it to RGB to make sure the format is always consistent
-# Finally I convert it to a NumPy array so I can work with pixel values
+# Here I load the image from disk.
+# I use PIL because it is simple and works well with most image formats.
+# I convert the image to RGB to make sure everything is consistent.
+# Then I convert it to a NumPy array because I want to work directly with pixel values.
 def load_image(path):
     img = Image.open(path).convert("RGB")
     return np.array(img)
 
 
-# In this step, I convert the image to grayscale
-# I do this because working with one channel is much easier than three
-# Also, segmentation usually depends on intensity, not color
-# I used standard weights because green contributes more to brightness
+# In this step, I convert the image into grayscale.
+# The reason is that segmentation usually depends on intensity, not color.
+# So instead of working with 3 channels, I reduce it to 1 channel.
+# I use standard weights because green contributes more to brightness perception.
 def to_gray(img):
     r, g, b = img[:,:,0], img[:,:,1], img[:,:,2]
     gray = 0.299*r + 0.587*g + 0.114*b
     return gray.astype(np.uint8)
 
 
-# Here I try to find the best threshold automatically
-# The idea is to separate pixels into two groups:
-# one for tissue and one for background
-# I loop over all possible thresholds and pick the one
-# that creates the biggest difference between the two groups
+# Here I try to automatically find a good threshold.
+# The goal is to separate the image into two parts:
+# foreground (tissue) and background.
+# I test all possible threshold values and choose the one
+# that maximizes the difference between the two groups.
+# This is similar to Otsu's method.
 def compute_threshold(gray):
     hist, _ = np.histogram(gray, bins=256, range=(0, 256))
 
@@ -83,17 +88,18 @@ def compute_threshold(gray):
     return best_t
 
 
-# Now I apply the threshold
-# If pixel value is lower than threshold, I consider it as tissue
-# Otherwise, it is background
-# I use 0 for tissue and 255 for background to keep it simple
+# After finding the threshold, I convert the grayscale image to a binary mask.
+# Pixels darker than the threshold are considered tissue (0).
+# Pixels brighter than the threshold are background (255).
+# I use 0 and 255 because it is easier to visualize later.
 def apply_threshold(gray, t):
     return np.where(gray <= t, 0, 255).astype(np.uint8)
 
 
-# This step expands the tissue region
-# If any neighbor is tissue, I also consider this pixel as tissue
-# This helps fill small gaps and connect broken parts
+# Dilation expands the black regions (tissue).
+# If a pixel has at least one neighbor that is tissue,
+# I convert it to tissue as well.
+# This helps fill small gaps and connect broken parts.
 def dilation(mask):
     h, w = mask.shape
     output = mask.copy()
@@ -108,9 +114,10 @@ def dilation(mask):
     return output
 
 
-# This is the opposite of dilation
-# Here I try to remove small noisy pixels
-# A pixel stays as tissue only if all its neighbors are tissue
+# Erosion does the opposite of dilation.
+# It removes small noise.
+# A pixel remains tissue only if all its neighbors are also tissue.
+# This is useful for cleaning the segmentation result.
 def erosion(mask):
     h, w = mask.shape
     output = mask.copy()
@@ -125,20 +132,24 @@ def erosion(mask):
     return output
 
 
-# Here I combine both operations
-# First I expand the regions to fill holes
-# Then I shrink them a bit to remove noise
-# This simple combination already improves the mask a lot
+# Here I combine dilation and erosion to improve the mask.
+# First I apply dilation multiple times to fill holes and connect regions.
+# Then I apply erosion to remove extra noise.
+# This makes the segmentation much cleaner.
 def refine_segmentation(mask):
     mask = dilation(mask)
     mask = dilation(mask)
+    mask = dilation(mask)
+
     mask = erosion(mask)
+    mask = erosion(mask)
+
     return mask
 
 
-# Sometimes there are multiple regions after segmentation
-# But usually we only care about the main tissue
-# So here I find all connected regions and keep only the largest one
+# Sometimes the segmentation produces multiple separate regions.
+# But usually we only care about the main tissue.
+# So here I find all connected components and keep only the largest one.
 def select_main_region(mask):
     h, w = mask.shape
     visited = np.zeros_like(mask, dtype=bool)
@@ -182,10 +193,52 @@ def select_main_region(mask):
     return output
 
 
-# Here I evaluate how good the segmentation is
-# I don’t just check how big the region is
-# I also check how consistent it is (coherence)
-# If most pixels belong to one region, it means segmentation is clean
+# Even after all processing, small white holes may remain inside the tissue.
+# These are not real background, they are just segmentation errors.
+# So here I fill those holes using a flood-fill idea.
+# I start from the borders and mark real background.
+# Anything that is not connected to the border is considered a hole and filled.
+def fill_holes(mask):
+    h, w = mask.shape
+    filled = mask.copy()
+    visited = np.zeros_like(mask, dtype=bool)
+
+    stack = []
+
+    for i in range(h):
+        stack.append((i,0))
+        stack.append((i,w-1))
+    for j in range(w):
+        stack.append((0,j))
+        stack.append((h-1,j))
+
+    while stack:
+        i, j = stack.pop()
+
+        if i < 0 or i >= h or j < 0 or j >= w:
+            continue
+
+        if visited[i,j] or filled[i,j] != 255:
+            continue
+
+        visited[i,j] = True
+
+        for dx in [-1,0,1]:
+            for dy in [-1,0,1]:
+                stack.append((i+dx, j+dy))
+
+    for i in range(h):
+        for j in range(w):
+            if filled[i,j] == 255 and not visited[i,j]:
+                filled[i,j] = 0
+
+    return filled
+
+
+# Here I evaluate how good the segmentation is.
+# I check how much of the image is selected (ratio)
+# and also how consistent the region is (coherence).
+# If most pixels belong to one region, the result is good.
 def analyze(mask):
     total_pixels = mask.size
     foreground_pixels = np.sum(mask == 0)
@@ -239,25 +292,32 @@ def analyze(mask):
     return ratio, quality
 
 
-# Here I create an overlay to visualize the result
-# I highlight the boundary of the tissue using a bright color
-# This makes it easier to see the segmentation result
+# Here I create an overlay image.
+# I highlight the boundary of the ROI using red color.
+# I also make the boundary thicker so it is easier to see.
 def create_overlay(img, mask):
     overlay = img.copy()
     h, w = mask.shape
+
+    thickness = 3
 
     for i in range(1, h-1):
         for j in range(1, w-1):
             if mask[i,j] == 0:
                 if np.any(mask[i-1:i+2, j-1:j+2] == 255):
-                    overlay[i,j] = [255, 0, 0]
+
+                    for di in range(-thickness, thickness+1):
+                        for dj in range(-thickness, thickness+1):
+                            ni, nj = i + di, j + dj
+                            if 0 <= ni < h and 0 <= nj < w:
+                                overlay[ni, nj] = [255, 0, 0]
 
     return overlay
 
 
-# Here I display all results together
-# I show each step so I can understand how the image changes
-# I also save the final figure so I can reuse it later
+# Finally, I visualize all steps.
+# This helps me understand what happens at each stage.
+# I also save the final result so I can use it in reports.
 def show_results(img, gray, mask, refined, final, t, ratio, quality):
     overlay = create_overlay(img, final)
 
@@ -290,8 +350,6 @@ def show_results(img, gray, mask, refined, final, t, ratio, quality):
 
     plt.tight_layout()
 
-    # I added this part so the output is saved automatically
-    # This is useful for reports or README examples
     import os
     os.makedirs("outputs", exist_ok=True)
     plt.savefig("outputs/final_pipeline.png", bbox_inches='tight')
@@ -299,9 +357,9 @@ def show_results(img, gray, mask, refined, final, t, ratio, quality):
     plt.show()
 
 
-# This is where everything runs
-# I take the input image, process it step by step,
-# and finally show and evaluate the result
+# This is the main part where everything runs step by step.
+# I take the input image, process it, evaluate it,
+# and finally show and save the result.
 if __name__ == "__main__":
     import sys
 
@@ -319,6 +377,8 @@ if __name__ == "__main__":
     mask = apply_threshold(gray, t)
     refined = refine_segmentation(mask)
     final = select_main_region(refined)
+
+    final = fill_holes(final)
 
     ratio, quality = analyze(final)
 
